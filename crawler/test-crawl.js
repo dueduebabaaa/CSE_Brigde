@@ -6,7 +6,7 @@ const BOARD_URL =
     "https://computer.knu.ac.kr/bbs/board.php?bo_table=sub6_1_a&lang=kor";
 
 const MAX_PAGES = 3;
-const DELAY = 500;
+const DELAY = 2500;
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
