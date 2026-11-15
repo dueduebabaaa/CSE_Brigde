@@ -6,33 +6,41 @@ import { Compass, Users, Sparkles, Calendar, Clock, ArrowRight } from 'lucide-re
 export const HomePage: React.FC = () => {
   return (
     <div className="space-y-8">
-      {/* 히어로 배너 */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#13141C] via-[#10111A] to-[#0A0A0C] border border-[#242634] p-8 sm:p-10">
-        <div className="absolute -top-24 -right-24 w-80 h-80 bg-[#7D39EB]/20 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-[#C6FF33]/15 rounded-full blur-3xl pointer-events-none" />
+      {/* 히어로 배너 — 다크 배경 유지 */}
+      <div className="relative overflow-hidden rounded-2xl bg-[#0A0A0C] border border-[#1E1E2A] p-8 sm:p-10">
+        <div className="absolute -top-24 -right-24 w-80 h-80 bg-[#7D39EB]/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-[#C6FF33]/8 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10 max-w-2xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#7D39EB]/20 border border-[#7D39EB]/40 text-[#C6FF33] text-xs font-bold mb-4">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#7D39EB]/15 border border-[#7D39EB]/30 text-[#C6FF33] text-xs font-bold mb-4">
             <span>KNU CSE · PROJECT NETWORK</span>
           </div>
           <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight leading-tight mb-3">
-            우리 사이, <span className="text-[#C6FF33]">가능성</span>을 잇다.
+            {/* 모바일: 2줄 / PC(sm↑): 1줄 */}
+            <span className="sm:hidden">
+              우리 사이,{' '}
+              <br />
+              <span className="text-[#C6FF33]">가능성</span>을 잇다.
+            </span>
+            <span className="hidden sm:inline">
+              우리 사이, <span className="text-[#C6FF33]">가능성</span>을 잇다.
+            </span>
           </h1>
-          <p className="text-sm sm:text-base text-slate-300 mb-6 leading-relaxed">
+          <p className="text-sm sm:text-base text-[#94A3B8] mb-6 leading-relaxed">
             경북대학교 컴퓨터학부 공식 홈페이지 공고 자동 수집부터 관심 분야 기반 팀원 추천, 팀 구성 및 주간 시간표 조율까지 지원하는 올인원 협업 플랫폼 <strong className="text-white">BRIDGE</strong>입니다.
           </p>
 
           <div className="flex flex-wrap gap-3">
             <Link
               to="/opportunities"
-              className="px-4 py-2.5 rounded-lg bg-[#7D39EB] hover:bg-[#6025C5] text-white text-xs sm:text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-[#7D39EB]/30"
+              className="px-4 py-2.5 rounded-lg bg-[#7D39EB] hover:bg-[#6025C5] text-white text-xs sm:text-sm font-bold flex items-center gap-2 transition-all"
             >
               <Compass className="w-4 h-4" />
               공모전 둘러보기
             </Link>
             <Link
               to="/recruitments"
-              className="px-4 py-2.5 rounded-lg bg-[#181924] hover:bg-[#242634] border border-[#242634] text-slate-200 text-xs sm:text-sm font-semibold flex items-center gap-2 transition-all"
+              className="px-4 py-2.5 rounded-lg bg-white/10 hover:bg-white/15 border border-white/20 text-white text-xs sm:text-sm font-semibold flex items-center gap-2 transition-all"
             >
               <Users className="w-4 h-4" />
               팀원 모집 게시판
@@ -55,20 +63,20 @@ export const HomePage: React.FC = () => {
         ]}
       />
 
-      {/* 주요 기능 바로가기 그리드 */}
+      {/* 주요 기능 바로가기 그리드 — 라이트 카드 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Link
           to="/opportunities"
-          className="p-5 rounded-xl bg-[#13141C] border border-[#242634] hover:border-[#7D39EB] transition-all group flex flex-col justify-between"
+          className="p-5 rounded-xl bg-white border border-[#E2E8F0] hover:border-[#7D39EB] hover:shadow-md transition-all group flex flex-col justify-between"
         >
           <div>
-            <div className="w-10 h-10 rounded-lg bg-[#7D39EB]/15 text-[#7D39EB] flex items-center justify-center mb-3">
+            <div className="w-10 h-10 rounded-lg bg-[#F4EFFE] text-[#7D39EB] flex items-center justify-center mb-3">
               <Compass className="w-5 h-5" />
             </div>
-            <h3 className="text-base font-bold text-white group-hover:text-[#C6FF33] transition-colors">
-              공모전 & 대외활동
+            <h3 className="text-base font-bold text-[#111111] group-hover:text-[#7D39EB] transition-colors">
+              공모전 &amp; 대외활동
             </h3>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs text-[#64748B] mt-1">
               컴퓨터학부 공식 공고 및 직접 등록된 교내외 활동 탐색
             </p>
           </div>
@@ -79,36 +87,36 @@ export const HomePage: React.FC = () => {
 
         <Link
           to="/recruitments"
-          className="p-5 rounded-xl bg-[#13141C] border border-[#242634] hover:border-[#7D39EB] transition-all group flex flex-col justify-between"
+          className="p-5 rounded-xl bg-white border border-[#E2E8F0] hover:border-[#7D39EB] hover:shadow-md transition-all group flex flex-col justify-between"
         >
           <div>
-            <div className="w-10 h-10 rounded-lg bg-[#C6FF33]/15 text-[#C6FF33] flex items-center justify-center mb-3">
+            <div className="w-10 h-10 rounded-lg bg-[#F7FEDF] text-[#5a7a00] flex items-center justify-center mb-3">
               <Users className="w-5 h-5" />
             </div>
-            <h3 className="text-base font-bold text-white group-hover:text-[#C6FF33] transition-colors">
+            <h3 className="text-base font-bold text-[#111111] group-hover:text-[#7D39EB] transition-colors">
               팀원 모집
             </h3>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs text-[#64748B] mt-1">
               공모전별 팀원을 모집하고 지원서를 실시간 관리
             </p>
           </div>
-          <div className="mt-4 flex items-center text-xs font-semibold text-[#C6FF33] group-hover:translate-x-1 transition-transform">
+          <div className="mt-4 flex items-center text-xs font-semibold text-[#7D39EB] group-hover:translate-x-1 transition-transform">
             모집글 보기 <ArrowRight className="w-3.5 h-3.5 ml-1" />
           </div>
         </Link>
 
         <Link
           to="/team-builder"
-          className="p-5 rounded-xl bg-[#13141C] border border-[#242634] hover:border-[#7D39EB] transition-all group flex flex-col justify-between"
+          className="p-5 rounded-xl bg-white border border-[#E2E8F0] hover:border-[#7D39EB] hover:shadow-md transition-all group flex flex-col justify-between"
         >
           <div>
-            <div className="w-10 h-10 rounded-lg bg-[#7D39EB]/15 text-[#7D39EB] flex items-center justify-center mb-3">
+            <div className="w-10 h-10 rounded-lg bg-[#F4EFFE] text-[#7D39EB] flex items-center justify-center mb-3">
               <Sparkles className="w-5 h-5" />
             </div>
-            <h3 className="text-base font-bold text-white group-hover:text-[#C6FF33] transition-colors">
+            <h3 className="text-base font-bold text-[#111111] group-hover:text-[#7D39EB] transition-colors">
               스마트 팀 빌더
             </h3>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs text-[#64748B] mt-1">
               역할 충족도 분석 및 부족한 역량을 채울 팀원 추천
             </p>
           </div>
@@ -119,32 +127,32 @@ export const HomePage: React.FC = () => {
 
         <Link
           to="/schedule"
-          className="p-5 rounded-xl bg-[#13141C] border border-[#242634] hover:border-[#7D39EB] transition-all group flex flex-col justify-between"
+          className="p-5 rounded-xl bg-white border border-[#E2E8F0] hover:border-[#7D39EB] hover:shadow-md transition-all group flex flex-col justify-between"
         >
           <div>
-            <div className="w-10 h-10 rounded-lg bg-[#C6FF33]/15 text-[#C6FF33] flex items-center justify-center mb-3">
+            <div className="w-10 h-10 rounded-lg bg-[#F7FEDF] text-[#5a7a00] flex items-center justify-center mb-3">
               <Calendar className="w-5 h-5" />
             </div>
-            <h3 className="text-base font-bold text-white group-hover:text-[#C6FF33] transition-colors">
+            <h3 className="text-base font-bold text-[#111111] group-hover:text-[#7D39EB] transition-colors">
               주간 시간표 조율
             </h3>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs text-[#64748B] mt-1">
               30분 단위 활동 가능 시간 히트맵 및 회의 시간 자동 추천
             </p>
           </div>
-          <div className="mt-4 flex items-center text-xs font-semibold text-[#C6FF33] group-hover:translate-x-1 transition-transform">
+          <div className="mt-4 flex items-center text-xs font-semibold text-[#7D39EB] group-hover:translate-x-1 transition-transform">
             일정 조율하기 <ArrowRight className="w-3.5 h-3.5 ml-1" />
           </div>
         </Link>
       </div>
 
       {/* 공식 공고 상태 알림 바 */}
-      <div className="p-4 rounded-xl bg-[#0A0A0C] border border-[#242634] flex items-center justify-between flex-wrap gap-3 text-xs text-slate-400">
+      <div className="p-4 rounded-xl bg-white border border-[#E2E8F0] flex items-center justify-between flex-wrap gap-3 text-xs text-[#64748B]">
         <div className="flex items-center gap-2">
-          <Clock className="w-4 h-4 text-[#C6FF33]" />
-          <span>공식 공고 데이터 수집 상태: <strong className="text-slate-200">초기 환경 구성 완료 (수집 대기)</strong></span>
+          <Clock className="w-4 h-4 text-[#7D39EB]" />
+          <span>공식 공고 데이터 수집 상태: <strong className="text-[#111111]">초기 환경 구성 완료 (수집 대기)</strong></span>
         </div>
-        <Link to="/admin/opportunities" className="text-[#7D39EB] hover:text-[#9B65F1] font-semibold">
+        <Link to="/admin/opportunities" className="text-[#7D39EB] hover:text-[#6025C5] font-semibold">
           관리자 수집 현황 확인 →
         </Link>
       </div>

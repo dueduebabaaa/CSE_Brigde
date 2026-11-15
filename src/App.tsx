@@ -6,6 +6,7 @@ import { AppLayout } from './layouts/AppLayout';
 import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
 import { SignupPage } from './pages/SignupPage';
+import { OnboardingPage } from './pages/OnboardingPage';
 import { OpportunitiesPage } from './pages/OpportunitiesPage';
 import { OpportunityDetailPage } from './pages/OpportunityDetailPage';
 import { RecruitmentsPage } from './pages/RecruitmentsPage';
@@ -23,17 +24,28 @@ import { ProfilePage } from './pages/ProfilePage';
 import { AdminOpportunitiesPage } from './pages/AdminOpportunitiesPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 
+// 최초 접속 분기: 인증 또는 개발용 프리뷰 세션이 없으면 LoginPage 표시
+const RootRoute: React.FC = () => {
+  const isAuthed =
+    Boolean(import.meta.env.DEV) &&
+    typeof window !== 'undefined' &&
+    localStorage.getItem('bridge_auth_preview') === 'true';
+
+  return isAuthed ? <HomePage /> : <LoginPage />;
+};
+
 export const App: React.FC = () => {
   return (
     <BrowserRouter>
       <Routes>
         <Route element={<AppLayout />}>
-          {/* 홈 대시보드 */}
-          <Route path="/" element={<HomePage />} />
+          {/* 최초 접속 화면 (비로그인: 로그인 랜딩 / 로그인: 홈 대시보드) */}
+          <Route path="/" element={<RootRoute />} />
 
-          {/* 인증 */}
+          {/* 인증 및 온보딩 */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
+          <Route path="/onboarding" element={<OnboardingPage />} />
 
           {/* 공모전 & 대외활동 탐색 */}
           <Route path="/opportunities" element={<OpportunitiesPage />} />

@@ -10,35 +10,35 @@ export const MemberDetailPage: React.FC = () => {
     <div className="max-w-4xl mx-auto space-y-6">
       <Link
         to="/members"
-        className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors"
+        className="inline-flex items-center gap-1.5 text-xs text-[#64748B] hover:text-[#111111] transition-colors"
       >
         <ArrowLeft className="w-4 h-4" />
         팀원 목록으로 돌아가기
       </Link>
 
       {/* 프로필 헤더 */}
-      <div className="bg-[#13141C] border border-[#242634] rounded-2xl p-6 sm:p-8 space-y-6">
+      <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 sm:p-8 space-y-6 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#7D39EB] to-[#C6FF33] flex items-center justify-center text-black font-black text-2xl shadow-lg shadow-[#7D39EB]/20">
+            <div className="w-16 h-16 rounded-2xl bg-[#7D39EB] flex items-center justify-center text-white font-black text-2xl shadow-sm">
               김
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-black text-white tracking-tight">김컴학</h1>
-                <span className="px-2 py-0.5 text-xs font-bold rounded bg-[#7D39EB]/20 text-[#C6FF33] border border-[#7D39EB]/40">
+                <h1 className="text-2xl font-black text-[#111111] tracking-tight">김컴학</h1>
+                <span className="px-2 py-0.5 text-xs font-bold rounded bg-[#F4EFFE] text-[#7D39EB] border border-[#7D39EB]/20">
                   플랫폼소프트웨어 · 3학년
                 </span>
               </div>
-              <p className="text-xs text-slate-400 mt-1">
-                희망 역할: <strong className="text-slate-200">Frontend Developer / FullStack</strong> (ID: {id})
+              <p className="text-xs text-[#64748B] mt-1">
+                희망 역할: <strong className="text-[#111111]">Frontend Developer / FullStack</strong> (ID: {id})
               </p>
             </div>
           </div>
 
           <button
             onClick={() => alert('팀 초대장을 발송했습니다 (예시).')}
-            className="px-5 py-2.5 rounded-lg bg-[#7D39EB] hover:bg-[#6025C5] text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-[#7D39EB]/30 transition-all self-start sm:self-auto"
+            className="px-5 py-2.5 rounded-lg bg-[#7D39EB] hover:bg-[#6025C5] text-white text-xs font-bold flex items-center gap-2 transition-all self-start sm:self-auto shadow-sm"
           >
             <Send className="w-4 h-4" />
             내 팀으로 초대하기
@@ -46,31 +46,31 @@ export const MemberDetailPage: React.FC = () => {
         </div>
 
         {/* 자기소개 */}
-        <div className="bg-[#0B0C10] border border-[#242634] rounded-xl p-4 text-xs text-slate-300 leading-relaxed">
-          <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-            자기소개 & 목표
+        <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-4 text-xs text-[#334155] leading-relaxed">
+          <h4 className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider mb-1">
+            자기소개 &amp; 목표
           </h4>
           컴퓨터학부 3학년 재학 중이며, 사용자 경험 중심의 반응형 웹 프론트엔드 개발에 깊은 관심이 있습니다. 이번 학기 공모전에서 성실하고 책임감 있게 끝까지 프로젝트를 완성할 팀을 찾고 있습니다.
         </div>
 
         {/* 기술 스택 & 관심 분야 */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-          <div className="bg-[#0B0C10] p-4 rounded-xl border border-[#242634]">
-            <h4 className="font-bold text-slate-300 mb-2">보유 기술 스택</h4>
+          <div className="bg-[#F8FAFC] p-4 rounded-xl border border-[#E2E8F0]">
+            <h4 className="font-bold text-[#111111] mb-2">보유 기술 스택</h4>
             <div className="flex flex-wrap gap-1.5">
               {['React', 'TypeScript', 'TailwindCSS', 'Next.js', 'Git'].map((s) => (
-                <span key={s} className="px-2 py-1 rounded bg-[#181924] text-slate-300">
+                <span key={s} className="px-2 py-1 rounded bg-white text-[#64748B] border border-[#E2E8F0]">
                   {s}
                 </span>
               ))}
             </div>
           </div>
 
-          <div className="bg-[#0B0C10] p-4 rounded-xl border border-[#242634]">
-            <h4 className="font-bold text-slate-300 mb-2">배우고 싶은 기술 & 관심 분야</h4>
+          <div className="bg-[#F8FAFC] p-4 rounded-xl border border-[#E2E8F0]">
+            <h4 className="font-bold text-[#111111] mb-2">배우고 싶은 기술 &amp; 관심 분야</h4>
             <div className="flex flex-wrap gap-1.5">
               {['Supabase', 'Node.js', 'LLM Agent', '클라우드 배포'].map((s) => (
-                <span key={s} className="px-2 py-1 rounded bg-[#7D39EB]/15 text-[#C6FF33] border border-[#7D39EB]/30">
+                <span key={s} className="px-2 py-1 rounded bg-[#F4EFFE] text-[#7D39EB] border border-[#7D39EB]/20">
                   {s}
                 </span>
               ))}
@@ -79,12 +79,12 @@ export const MemberDetailPage: React.FC = () => {
         </div>
 
         {/* 협업 링크 */}
-        <div className="flex items-center gap-4 text-xs text-slate-400 pt-2 border-t border-[#242634]">
+        <div className="flex items-center gap-4 text-xs text-[#64748B] pt-2 border-t border-[#E2E8F0]">
           <a
             href="https://github.com"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1.5 hover:text-white transition-colors"
+            className="flex items-center gap-1.5 hover:text-[#111111] transition-colors"
           >
             <Github className="w-4 h-4" /> GitHub 프로필
           </a>
@@ -92,7 +92,7 @@ export const MemberDetailPage: React.FC = () => {
             href="https://portfolio.com"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1.5 hover:text-white transition-colors"
+            className="flex items-center gap-1.5 hover:text-[#111111] transition-colors"
           >
             <Globe className="w-4 h-4" /> 포트폴리오 웹사이트
           </a>

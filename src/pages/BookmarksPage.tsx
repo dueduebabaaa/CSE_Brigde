@@ -7,12 +7,12 @@ export const BookmarksPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2">
-        <h1 className="text-2xl font-black text-white tracking-tight">저장한 공모전 & 북마크</h1>
-        <span className="px-2 py-0.5 text-xs font-semibold rounded bg-[#7D39EB]/20 text-[#C6FF33] border border-[#7D39EB]/30">
+        <h1 className="text-2xl font-black text-[#111111] tracking-tight">저장한 공모전 &amp; 북마크</h1>
+        <span className="px-2 py-0.5 text-xs font-semibold rounded bg-[#F4EFFE] text-[#7D39EB] border border-[#7D39EB]/20">
           SAVED
         </span>
       </div>
-      <p className="text-xs text-slate-400 -mt-4">
+      <p className="text-xs text-[#64748B] -mt-4">
         관심 등록한 공모전과 대외활동 공고를 한곳에서 확인하고 마감 기한을 관리하세요.
       </p>
 
@@ -28,17 +28,17 @@ export const BookmarksPage: React.FC = () => {
       />
 
       {/* 빈 상태 프리뷰 */}
-      <div className="p-12 text-center rounded-2xl bg-[#13141C] border border-[#242634] space-y-3">
-        <div className="w-12 h-12 rounded-xl bg-[#181924] border border-[#242634] flex items-center justify-center mx-auto text-slate-500">
+      <div className="p-12 text-center rounded-2xl bg-white border border-[#E2E8F0] space-y-3">
+        <div className="w-12 h-12 rounded-xl bg-[#F1F5F9] border border-[#E2E8F0] flex items-center justify-center mx-auto text-[#94A3B8]">
           <Bookmark className="w-6 h-6" />
         </div>
-        <h3 className="text-base font-bold text-white">아직 저장한 공모전이 없습니다</h3>
-        <p className="text-xs text-slate-400 max-w-sm mx-auto">
+        <h3 className="text-base font-bold text-[#111111]">아직 저장한 공모전이 없습니다</h3>
+        <p className="text-xs text-[#64748B] max-w-sm mx-auto">
           컴퓨터학부 공식 공고 및 다양한 대외활동 중 마음에 드는 공고를 북마크해 보세요.
         </p>
         <Link
           to="/opportunities"
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#7D39EB] hover:bg-[#6025C5] text-white text-xs font-bold transition-all shadow-md mt-2"
+          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#7D39EB] hover:bg-[#6025C5] text-white text-xs font-bold transition-all mt-2"
         >
           <Compass className="w-4 h-4" />
           공모전 둘러보기

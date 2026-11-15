@@ -23,12 +23,12 @@ export const ProjectsPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-black text-white tracking-tight">내 프로젝트</h1>
-            <span className="px-2 py-0.5 text-xs font-semibold rounded bg-[#7D39EB]/20 text-[#C6FF33] border border-[#7D39EB]/30">
+            <h1 className="text-2xl font-black text-[#111111] tracking-tight">내 프로젝트</h1>
+            <span className="px-2 py-0.5 text-xs font-semibold rounded bg-[#F4EFFE] text-[#7D39EB] border border-[#7D39EB]/20">
               WORKSPACE
             </span>
           </div>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-[#64748B] mt-1">
             내가 결성하거나 소속된 팀의 공모전 진행 현황, 체크리스트, 협업 도구를 관리하세요.
           </p>
         </div>
@@ -48,7 +48,7 @@ export const ProjectsPage: React.FC = () => {
 
       {/* 프로젝트 카드 목록 */}
       <div className="space-y-4">
-        <div className="text-xs text-slate-400">
+        <div className="text-xs text-[#64748B]">
           * 레이아웃 확인용 프로토타입 샘플 카드입니다.
         </div>
 
@@ -56,53 +56,53 @@ export const ProjectsPage: React.FC = () => {
           {SAMPLE_PROJECTS.map((proj) => (
             <div
               key={proj.id}
-              className="bg-[#13141C] border border-[#242634] hover:border-[#7D39EB] rounded-2xl p-6 transition-all group flex flex-col justify-between"
+              className="bg-white border border-[#E2E8F0] hover:border-[#7D39EB] hover:shadow-md rounded-2xl p-6 transition-all group flex flex-col justify-between shadow-sm"
             >
               <div>
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <span className="text-xs text-[#7D39EB] font-bold">
                     🎯 {proj.opportunityTitle}
                   </span>
-                  <span className="px-2 py-0.5 text-xs font-bold rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                  <span className="px-2 py-0.5 text-xs font-bold rounded bg-rose-50 text-rose-600 border border-rose-200">
                     {proj.dDay}
                   </span>
                 </div>
 
                 <Link
                   to={`/projects/${proj.id}`}
-                  className="text-lg font-black text-white group-hover:text-[#C6FF33] transition-colors"
+                  className="text-lg font-black text-[#111111] group-hover:text-[#7D39EB] transition-colors"
                 >
                   {proj.name}
                 </Link>
 
-                <p className="text-xs text-slate-400 mt-1">
-                  내 역할: <strong className="text-slate-200">{proj.role}</strong>
+                <p className="text-xs text-[#64748B] mt-1">
+                  내 역할: <strong className="text-[#111111]">{proj.role}</strong>
                 </p>
 
                 {/* 진행도 바 */}
                 <div className="mt-4">
-                  <div className="flex justify-between text-[11px] text-slate-400 mb-1">
+                  <div className="flex justify-between text-[11px] text-[#64748B] mb-1">
                     <span>체크리스트 진행도</span>
-                    <span className="text-[#C6FF33] font-bold">{proj.progress}%</span>
+                    <span className="text-[#7D39EB] font-bold">{proj.progress}%</span>
                   </div>
-                  <div className="w-full h-2 rounded-full bg-[#0B0C10] overflow-hidden">
+                  <div className="w-full h-2 rounded-full bg-[#F1F5F9] overflow-hidden">
                     <div
-                      className="h-full bg-gradient-to-r from-[#7D39EB] to-[#C6FF33] rounded-full"
+                      className="h-full bg-[#7D39EB] rounded-full"
                       style={{ width: `${proj.progress}%` }}
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="mt-6 pt-4 border-t border-[#242634] flex items-center justify-between text-xs text-slate-400">
+              <div className="mt-6 pt-4 border-t border-[#E2E8F0] flex items-center justify-between text-xs text-[#64748B]">
                 <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4 text-slate-500" />
+                  <Users className="w-4 h-4 text-[#94A3B8]" />
                   <span>팀원 {proj.membersCount}명</span>
                 </div>
 
                 <Link
                   to={`/projects/${proj.id}`}
-                  className="text-[#7D39EB] group-hover:text-[#9B65F1] font-semibold flex items-center gap-1"
+                  className="text-[#7D39EB] group-hover:text-[#6025C5] font-semibold flex items-center gap-1"
                 >
                   워크스페이스 열기 <ArrowRight className="w-3.5 h-3.5" />
                 </Link>

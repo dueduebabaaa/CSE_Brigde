@@ -18,43 +18,43 @@ export const RecruitmentEditPage: React.FC = () => {
     <div className="max-w-3xl mx-auto space-y-6">
       <Link
         to={`/recruitments/${id}`}
-        className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors"
+        className="inline-flex items-center gap-1.5 text-xs text-[#64748B] hover:text-[#111111] transition-colors"
       >
         <ArrowLeft className="w-4 h-4" />
         게시글 상세로 돌아가기
       </Link>
 
       <div>
-        <h1 className="text-2xl font-black text-white tracking-tight">팀원 모집 게시글 수정</h1>
-        <p className="text-xs text-slate-400 mt-1">
+        <h1 className="text-2xl font-black text-[#111111] tracking-tight">팀원 모집 게시글 수정</h1>
+        <p className="text-xs text-[#64748B] mt-1">
           게시글 정보 (ID: {id})를 수정할 수 있습니다.
         </p>
       </div>
 
-      <div className="bg-[#13141C] border border-[#242634] rounded-2xl p-6 sm:p-8">
+      <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 sm:p-8 shadow-sm">
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+            <label className="block text-xs font-semibold text-[#111111] mb-1.5">
               모집글 제목
             </label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-lg bg-[#0B0C10] border border-[#242634] focus:border-[#7D39EB] focus:outline-none text-xs text-white"
+              className="w-full px-3.5 py-2.5 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] focus:border-[#7D39EB] focus:outline-none focus:bg-white text-xs text-[#111111]"
             />
           </div>
 
           <div className="flex justify-end gap-3 pt-3">
             <Link
               to={`/recruitments/${id}`}
-              className="px-4 py-2.5 rounded-lg bg-[#181924] text-slate-300 text-xs font-semibold hover:text-white"
+              className="px-4 py-2.5 rounded-lg bg-[#F1F5F9] text-[#64748B] text-xs font-semibold hover:text-[#111111] transition-colors"
             >
               취소
             </Link>
             <button
               type="submit"
-              className="px-5 py-2.5 rounded-lg bg-[#7D39EB] hover:bg-[#6025C5] text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-[#7D39EB]/30"
+              className="px-5 py-2.5 rounded-lg bg-[#7D39EB] hover:bg-[#6025C5] text-white text-xs font-bold flex items-center gap-2 transition-colors"
             >
               <Save className="w-4 h-4" />
               수정 사항 저장하기

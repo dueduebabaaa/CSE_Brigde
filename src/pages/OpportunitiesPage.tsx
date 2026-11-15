@@ -39,12 +39,12 @@ export const OpportunitiesPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-black text-white tracking-tight">공모전 & 대외활동 탐색</h1>
-            <span className="px-2 py-0.5 text-xs font-semibold rounded bg-[#7D39EB]/20 text-[#C6FF33] border border-[#7D39EB]/30">
+            <h1 className="text-2xl font-black text-[#111111] tracking-tight">공모전 &amp; 대외활동 탐색</h1>
+            <span className="px-2 py-0.5 text-xs font-semibold rounded bg-[#F4EFFE] text-[#7D39EB] border border-[#7D39EB]/20">
               EXPLORE
             </span>
           </div>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-[#64748B] mt-1">
             컴퓨터학부 공식 홈페이지 공고와 직접 등록된 교내외 공모전을 탐색하고 팀원을 모집해 보세요.
           </p>
         </div>
@@ -71,28 +71,28 @@ export const OpportunitiesPage: React.FC = () => {
       />
 
       {/* 검색 및 필터 바 */}
-      <div className="bg-[#13141C] border border-[#242634] rounded-xl p-4 flex flex-col md:flex-row gap-3 items-center justify-between">
+      <div className="bg-white border border-[#E2E8F0] rounded-xl p-4 flex flex-col md:flex-row gap-3 items-center justify-between shadow-sm">
         <div className="relative w-full md:w-96">
-          <Search className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+          <Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-3" />
           <input
             type="text"
             placeholder="공모전 제목, 키워드, 기술 스택 검색..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 rounded-lg bg-[#0B0C10] border border-[#242634] focus:border-[#7D39EB] focus:outline-none text-xs text-white placeholder-slate-500"
+            className="w-full pl-9 pr-4 py-2 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] focus:border-[#7D39EB] focus:outline-none text-xs text-[#111111] placeholder-[#94A3B8]"
           />
         </div>
 
         <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
-          <Filter className="w-4 h-4 text-slate-400 shrink-0" />
+          <Filter className="w-4 h-4 text-[#94A3B8] shrink-0" />
           {['all', '해커톤', '경진대회', '대외활동', '교육/특강'].map((cat) => (
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
                 selectedCategory === cat
-                  ? 'bg-[#7D39EB] text-white'
-                  : 'bg-[#181924] text-slate-400 hover:text-white'
+                  ? 'bg-[#7D39EB] text-white shadow-sm'
+                  : 'bg-[#F1F5F9] text-[#64748B] hover:text-[#111111]'
               }`}
             >
               {cat === 'all' ? '전체 보기' : cat}
@@ -103,7 +103,7 @@ export const OpportunitiesPage: React.FC = () => {
 
       {/* 프로토타입 목업 공고 카드 목록 */}
       <div className="space-y-4">
-        <div className="text-xs text-slate-400 flex items-center justify-between">
+        <div className="text-xs text-[#64748B] flex items-center justify-between">
           <span>* 아래 목록은 레이아웃 확인용 프로토타입 샘플 카드입니다. (크롤링 전)</span>
           <span>총 2건 예시 표시</span>
         </div>
@@ -112,32 +112,32 @@ export const OpportunitiesPage: React.FC = () => {
           {SAMPLE_OPPORTUNITIES.map((opp) => (
             <div
               key={opp.id}
-              className="bg-[#13141C] border border-[#242634] hover:border-[#7D39EB] rounded-xl p-5 flex flex-col justify-between transition-all group"
+              className="bg-white border border-[#E2E8F0] hover:border-[#7D39EB] hover:shadow-md rounded-xl p-5 flex flex-col justify-between transition-all group shadow-sm"
             >
               <div>
                 <div className="flex items-center justify-between gap-2 mb-2">
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#F1F5F9] text-[#64748B] border border-[#E2E8F0]">
                     {opp.sourceLabel}
                   </span>
-                  <span className="text-xs text-[#C6FF33] font-bold">
+                  <span className="text-xs text-[#7D39EB] font-bold bg-[#F4EFFE] px-1.5 py-0.5 rounded">
                     추천 매칭도 {opp.recommendedScore}%
                   </span>
                 </div>
 
                 <Link
                   to={`/opportunities/${opp.id}`}
-                  className="text-base font-bold text-white group-hover:text-[#C6FF33] transition-colors line-clamp-2"
+                  className="text-base font-bold text-[#111111] group-hover:text-[#7D39EB] transition-colors line-clamp-2"
                 >
                   {opp.title}
                 </Link>
 
-                <p className="text-xs text-slate-400 mt-1">주최: {opp.organizer}</p>
+                <p className="text-xs text-[#64748B] mt-1">주최: {opp.organizer}</p>
 
                 <div className="flex flex-wrap gap-1.5 mt-3">
                   {opp.tags.map((t) => (
                     <span
                       key={t}
-                      className="text-[10px] px-2 py-0.5 rounded bg-[#0B0C10] text-slate-300 border border-[#242634]"
+                      className="text-[10px] px-2 py-0.5 rounded bg-[#F8FAFC] text-[#64748B] border border-[#E2E8F0]"
                     >
                       #{t}
                     </span>
@@ -145,14 +145,14 @@ export const OpportunitiesPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="mt-5 pt-4 border-t border-[#242634] flex items-center justify-between text-xs">
-                <div className="flex items-center gap-1.5 text-slate-400">
+              <div className="mt-5 pt-4 border-t border-[#E2E8F0] flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5 text-[#64748B]">
                   <Calendar className="w-3.5 h-3.5" />
                   <span>마감: {opp.deadline}</span>
                 </div>
                 <Link
                   to={`/opportunities/${opp.id}`}
-                  className="text-[#7D39EB] group-hover:text-[#9B65F1] font-semibold flex items-center gap-1"
+                  className="text-[#7D39EB] group-hover:text-[#6025C5] font-semibold flex items-center gap-1"
                 >
                   상세보기 <ArrowRight className="w-3 h-3" />
                 </Link>
