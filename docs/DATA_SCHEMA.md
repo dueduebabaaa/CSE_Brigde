@@ -1,15 +1,19 @@
 # BRIDGE — 공통 데이터 타입 및 Supabase 데이터베이스 설계서 (DATA_SCHEMA.md)
 
 ## 1. 개요
-본 문서는 BRIDGE 플랫폼의 공통 TypeScript 타입(`src/types/index.ts`)과 Supabase PostgreSQL 데이터베이스 스키마 간의 일관성을 유지하기 위한 DDL 및 RLS 보안 정책 설계서입니다.
+본 문서는 BRIDGE 플랫폼의 공통 TypeScript 타입(`src/types/index.ts`)과 Supabase PostgreSQL 데이터베이스 스키마 간의 일관성을 정의한 설계서입니다.
+
+> [!NOTE]
+> **팀원 간 데이터 구조 협의 안내**  
+> 섹션 3의 **기본 DDL**은 현재 코드베이스(`src/types/index.ts`)에 구현된 안정적인 기준 스키마이며, 섹션 5의 **프로필 확장 스키마 설계안**은 A 담당자(기획/UI)가 제안하는 **팀원 B, C와의 협의 예정 설계안(Draft Proposal)**입니다. 실제 확정 및 적용은 백엔드(B)와 알고리즘(C)의 검토를 거쳐 진행됩니다.
 
 ---
 
 ## 2. 엔티티 관계 다이어그램 (ERD 개요)
-- `users` (1) ─── (N) `recruitments` (작성한 모집글)
-- `users` (1) ─── (N) `applications` (제출한 지원서)
-- `users` (1) ─── (N) `availabilities` (활동 가능 시간 슬롯)
-- `users` (1) ─── (N) `bookmarks` (저장한 공모전)
+- `profiles` (1) ─── (N) `recruitments` (작성한 모집글)
+- `profiles` (1) ─── (N) `applications` (제출한 지원서)
+- `profiles` (1) ─── (N) `availabilities` (활동 가능 시간 슬롯)
+- `profiles` (1) ─── (N) `bookmarks` (저장한 공모전)
 - `opportunities` (1) ─── (N) `recruitments` (연결된 팀원 모집글)
 - `opportunities` (1) ─── (N) `bookmarks`
 - `recruitments` (1) ─── (1) `teams` (결성된 팀)
@@ -19,13 +23,13 @@
 
 ---
 
-## 3. PostgreSQL 테이블 DDL 초안
+## 3. PostgreSQL 기준 테이블 DDL (현재 구현 기준)
 
 ```sql
 -- 확장 모듈 활성화
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 1. 사용자 프로필 테이블
+-- 1. 사용자 프로필 테이블 (Baseline)
 CREATE TABLE public.profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     email TEXT NOT NULL,
@@ -175,7 +179,7 @@ CREATE TABLE public.bookmarks (
     UNIQUE (user_id, opportunity_id)
 );
 
--- 11. 프로젝트 체크리스트 테이블
+-- 11. 프로젝트 체크리스트 테이블 (추가 기능)
 CREATE TABLE public.project_tasks (
     id TEXT PRIMARY KEY DEFAULT ('task-' || uuid_generate_v4()),
     team_id TEXT NOT NULL REFERENCES public.teams(id) ON DELETE CASCADE,
@@ -205,21 +209,72 @@ CREATE TABLE public.crawling_logs (
 모든 테이블은 기본적으로 `ALTER TABLE [table] ENABLE ROW LEVEL SECURITY;`를 적용합니다.
 
 1. **`profiles` (사용자 프로필)**:
-   - 조회: `is_public = true`인 프로필은 모든 인증된 학부생 조회 가능. 본인 프로필은 항상 조회/수정 가능.
-   - 수정: `auth.uid() = id`인 본인만 UPDATE 가능.
+   - **이메일 보호**: 사용자 이메일은 Google OAuth 인증 및 시스템 내부 식별용으로만 쓰이며, 타인에게 노출되지 않도록 Supabase View 또는 RLS 컬럼 권한으로 마스킹합니다.
+   - **프로필 공개 범위**: `is_public = true`인 프로필에 한하여 인증된 학부생의 검색 및 열람을 허용합니다.
+   - **수정 권한**: `auth.uid() = id`인 본인만 UPDATE 가능합니다.
 2. **`opportunities` (공모전 공고)**:
-   - 조회: 모든 사용자(익명/인증) 조회 가능 (`status != 'draft'`).
-   - 등록/수정: 관리자 계정 또는 서비스 롤 키(크롤러 실행용)만 가능. 일반 사용자는 `source_type = 'user_manual'`로만 생성 가능.
+   - 조회: 모든 인증된 학부생 조회 가능 (`status != 'draft'`).
+   - 관리자 등록: 관리자 권한(`auth.jwt() ->> 'role' = 'admin'`) 또는 Service Role Key만 등록/수정 가능.
 3. **`recruitments` (팀원 모집글)**:
-   - 조회: 모든 인증된 사용자 조회 가능.
+   - 조회: 인증된 학부생 전체 열람 가능.
    - 수정/삭제: `author_id = auth.uid()`인 작성자 본인만 가능.
 4. **`applications` (팀 가입 신청)**:
    - 조회: 신청자 본인(`applicant_id = auth.uid()`) 또는 해당 모집글 작성자(`recruitments.author_id = auth.uid()`)만 가능.
-   - 상태 변경(수락/거절): 해당 모집글 작성자만 UPDATE 가능.
+   - 수락/거절: 모집글 작성자만 상태 UPDATE 가능.
 5. **`teams`, `meetings`, `project_tasks`**:
-   - `team_members`에 소속된 유저(`user_id = auth.uid()`)만 열람 및 작성/수정 가능.
+   - `team_members`에 소속된 유저(`user_id = auth.uid()`)에게만 열람 및 수정 권한 부여.
 6. **`availabilities` (시간표)**:
    - 본인 시간표는 항상 수정 가능.
-   - 다른 사용자의 시간표는 팀 빌더 및 일정 조율 목적으로 동일 팀 소속 팀원 또는 프로필 공개 유저에 한해 조회 허용.
+   - 상세 시간표 슬롯은 본인 및 동일 프로젝트 팀원에게만 공개.
 7. **`crawling_logs`**:
-   - 일반 사용자 조회 차단, 관리자 Role 및 Service Role Key만 접근 허용.
+   - 일반 사용자 조회 완전 차단, 관리자 Role 및 Service Role Key 전용.
+
+---
+
+## 5. 최신 기획에 따른 프로필 스키마 확장안 (협의 예정 설계안)
+
+> [!TIP]
+> **팀 B(백엔드) 및 팀 C(알고리즘)와의 사전 협의 안건**  
+> 최신 기획에 따라 사용자 프로필에 **소속 학부, 기술 숙련도, 활동 방식, 참여 가능 상태, 프로젝트 경험 구조체**를 도입하는 방안입니다. 현재 프론트엔드 코드나 `src/types/index.ts`를 즉시 수정하지 않고, 협의 완료 후 안전하게 마이그레이션할 계획입니다.
+
+### 5-1. 제안 확장 필드 (Proposed Columns for `profiles`)
+
+```sql
+-- [협의안] profiles 테이블 확장 제안 DDL
+ALTER TABLE public.profiles
+    ADD COLUMN department TEXT DEFAULT '컴퓨터학부',
+    ADD COLUMN avatar_url TEXT,
+    ADD COLUMN tech_proficiency JSONB DEFAULT '{}', -- 예: {"React": "숙련", "Python": "활용 가능"}
+    ADD COLUMN activity_types TEXT[] DEFAULT '{}',  -- ["공모전", "해커톤", "사이드 프로젝트"]
+    ADD COLUMN activity_goals TEXT[] DEFAULT '{}',  -- ["수상", "실무 경험", "포트폴리오"]
+    ADD COLUMN activity_mode TEXT DEFAULT '혼합' CHECK (activity_mode IN ('대면', '비대면', '혼합')),
+    ADD COLUMN activity_duration TEXT DEFAULT '무관' CHECK (activity_duration IN ('단기', '장기', '무관')),
+    ADD COLUMN availability_status TEXT DEFAULT '팀 구하는 중' 
+        CHECK (availability_status IN ('팀 구하는 중', '제안 환영', '활동 중', '참여 어려움')),
+    ADD COLUMN project_experiences JSONB DEFAULT '[]', -- 구조화된 프로젝트 경험 목록
+    ADD COLUMN awards TEXT[] DEFAULT '{}';
+```
+
+### 5-2. `project_experiences` JSONB 구조 제안
+```json
+[
+  {
+    "id": "exp-01",
+    "projectName": "2025 학부 해커톤 출전작",
+    "description": "학부생 편의를 위한 강의실 예약 시스템 구축",
+    "role": "Frontend Developer",
+    "techStacks": ["React", "TypeScript", "TailwindCSS"],
+    "period": "2025.09 - 2025.10",
+    "awards": "우수상 수상",
+    "linkUrl": "https://github.com/example/repo"
+  }
+]
+```
+
+### 5-3. B/C 담당자와의 주요 협의 사항
+1. **기술 스택 '아직 보유 기술 없음' 저장 방식**:
+   - `tech_stacks: []` (빈 배열)로 둘 것인지, `tech_stacks: ['아직 보유 기술 없음']` 문자열 태그로 포함할 것인지 결정.
+2. **기술별 숙련도(`tech_proficiency`) 포맷**:
+   - `JSONB` 객체(`{"React": "advanced"}`) 형태 vs 별도 매핑 테이블(`user_tech_skills`) 분리 여부.
+3. **태그 표준화 및 추천 가중치**:
+   - 팀 C의 `tagClassification.ts`와 연동하여, 대소문자 무관 정규화 및 `desiredRoles` 기반 가중치 매칭 규칙 확정.
