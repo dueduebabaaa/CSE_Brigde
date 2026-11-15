@@ -2,11 +2,19 @@
 name: KNU CSE Notice Crawler
 
 on:
+  push:
+    branches:
+      - backend
+    paths:
+      - 'crawler/**'
+      - '.github/workflows/crawler.yml'
+      - 'package.json'
+      - 'package-lock.json'
+
   schedule:
     # 매일 한국 시간 자정 (UTC 15:00)
     - cron: "0 15 * * *"
 
-  # GitHub에서 수동 실행 가능
   workflow_dispatch:
 
 jobs:
