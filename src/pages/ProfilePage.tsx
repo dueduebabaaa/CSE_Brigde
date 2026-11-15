@@ -1,3 +1,4 @@
+import { MAJOR_TRACKS, GRADE_OPTIONS } from '../constants/majors';
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { User, Clock, FileText, Mail, Save } from 'lucide-react';
@@ -62,26 +63,21 @@ export const ProfilePage: React.FC = () => {
           <div>
             <label className="block text-[#64748B] font-semibold mb-1">학년</label>
             <select
-              defaultValue="3학년"
+              defaultValue=""
               className="w-full px-3 py-2 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-[#111111] font-medium focus:outline-none focus:ring-2 focus:ring-[#7D39EB]"
             >
-              <option value="1학년">1학년</option>
-              <option value="2학년">2학년</option>
-              <option value="3학년">3학년</option>
-              <option value="4학년">4학년</option>
-              <option value="대학원">대학원생</option>
+              <option value="">학년 선택</option>
+              {GRADE_OPTIONS.map((grade) => <option key={grade} value={grade}>{grade}</option>)}
             </select>
           </div>
           <div>
             <label className="block text-[#64748B] font-semibold mb-1">세부 전공</label>
             <select
-              defaultValue="플랫폼소프트웨어"
+              defaultValue=""
               className="w-full px-3 py-2 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-[#111111] font-medium focus:outline-none focus:ring-2 focus:ring-[#7D39EB]"
             >
-              <option value="플랫폼소프트웨어">플랫폼소프트웨어</option>
-              <option value="데이터사이언스">데이터사이언스</option>
-              <option value="인공지능컴퓨팅">인공지능컴퓨팅</option>
-              <option value="글로벌소프트웨어융합">글로벌소프트웨어융합</option>
+              <option value="">세부전공 선택</option>
+              {MAJOR_TRACKS.map((track) => <option key={track} value={track}>{track}</option>)}
             </select>
           </div>
         </div>

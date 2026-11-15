@@ -1,3 +1,4 @@
+import { MAJOR_TRACKS } from '../constants/majors';
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, Filter, Sparkles, Send, ArrowRight } from 'lucide-react';
@@ -63,7 +64,7 @@ export const MembersPage: React.FC = () => {
         assignedRole="A (검색/필터 UI) + C (매칭 점수 & 추천 알고리즘)"
         plannedFeatures={[
           '이름/닉네임 기반 실시간 검색',
-          '경북대학교 세부전공(플랫폼소프트웨어, 데이터사이언스, 인공지능컴퓨팅) 필터',
+          'BRIDGE 세부전공 5종 필터',
           '보유 기술 스택 및 희망 역할 태그 복합 조건 필터',
           '내 프로젝트 멤버로 초대 전송 기능',
         ]}
@@ -82,9 +83,9 @@ export const MembersPage: React.FC = () => {
           />
         </div>
 
-        <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto pb-1 md:pb-0">
           <Filter className="w-4 h-4 text-[#94A3B8] shrink-0" />
-          {['all', '플랫폼소프트웨어', '데이터사이언스', '인공지능컴퓨팅'].map((track) => (
+          {['all', ...MAJOR_TRACKS].map((track) => (
             <button
               key={track}
               onClick={() => setSelectedTrack(track)}

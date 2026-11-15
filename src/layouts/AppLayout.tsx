@@ -251,6 +251,11 @@ export const AppLayout: React.FC = () => {
             </div>
           </div>
 
+          {location.pathname === '/' && <NavLink to="/" aria-label="BRIDGE 홈" className="absolute left-1/2 inline-flex min-h-11 -translate-x-1/2 items-center gap-2 rounded-lg px-2 sm:hidden">
+            <span aria-hidden="true" className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#7D39EB] text-sm font-black text-white">B</span>
+            <span className="text-base font-black tracking-tight text-black">BRIDGE</span>
+          </NavLink>}
+
           <div className="flex items-center gap-2">
             <NavLink
               to="/recruitments/new"

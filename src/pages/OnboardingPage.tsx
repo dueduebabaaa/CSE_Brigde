@@ -17,7 +17,6 @@ import {
   Shield,
   TrendingUp,
   HelpCircle,
-  Search,
   Github,
   Globe,
   Lock,
@@ -26,6 +25,7 @@ import {
   Compass,
 } from 'lucide-react';
 import { MAJOR_TRACKS, GRADE_OPTIONS } from '../constants/majors';
+import { TechnologyPicker } from '../components/TechnologyPicker';
 
 // ─── 표준 태그 및 옵션 상수 정의 (docs/PROFILE_SPEC.md 준수) ───
 
@@ -68,21 +68,9 @@ const DESIRED_ROLE_OPTIONS: RoleOption[] = [
   { key: '기타', label: '기타 역할', desc: '하드웨어, 비즈니스 등', icon: HelpCircle },
 ];
 
-const TECH_CATALOG: Record<string, string[]> = {
-  Programming: ['C', 'C++', 'Java', 'Python', 'JavaScript', 'TypeScript', 'Kotlin'],
-  Frontend: ['HTML', 'CSS', 'React', 'Vue', 'Next.js'],
-  Backend: ['Node.js', 'Spring', 'Django', 'FastAPI', 'Express'],
-  Database: ['MySQL', 'PostgreSQL', 'MongoDB', 'SQL', 'Supabase'],
-  'AI / Data': ['PyTorch', 'TensorFlow', 'Pandas', 'NumPy'],
-  Mobile: ['Flutter', 'React Native', 'Swift', 'Android'],
-  Design: ['Figma', 'Photoshop', 'Illustrator'],
-  'Infra / DevOps': ['Git', 'GitHub', 'Docker', 'AWS', 'Linux'],
-  기타: ['Unity', 'Unreal Engine', 'Arduino', 'R'],
-};
-
 const ACTIVITY_TYPE_OPTIONS = ['공모전', '해커톤', '대외활동', '사이드 프로젝트', '스터디', '창업'];
 const ACTIVITY_GOAL_OPTIONS = ['수상 목표', '실무 경험', '포트폴리오', '기술 학습', '네트워킹'];
-const MEETING_WAY_OPTIONS = ['대면', '비대면', '온·오프라인 혼합'];
+const MEETING_WAY_OPTIONS = ['대면', '비대면', '혼합'];
 const DURATION_OPTIONS = ['단기 (1개월 이내)', '장기 (3개월 이상)', '무관'];
 
 const STATUS_OPTIONS = [
@@ -106,6 +94,8 @@ interface OnboardingFormState {
 
   // Step 2
   interests: string[];
+  otherInterest: string;
+  otherRole: string;
   desiredRoles: string[];
 
   // Step 3
@@ -126,15 +116,13 @@ interface OnboardingFormState {
   longBio: string;
   githubUrl: string;
   portfolioUrl: string;
-  visibility: 'public' | 'team_only' | 'private';
+  visibility: '' | 'public' | 'team_only' | 'private';
 }
 
 export const OnboardingPage: React.FC = () => {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [stepError, setStepError] = useState<string>('');
-  const [techSearch, setTechSearch] = useState<string>('');
-  const [newWantedTech, setNewWantedTech] = useState<string>('');
   const [showCompleteModal, setShowCompleteModal] = useState<boolean>(false);
 
   // 초기 폼 상태 (신규 사용자 기본 미선택)
@@ -146,25 +134,25 @@ export const OnboardingPage: React.FC = () => {
     department: '경북대학교 컴퓨터학부',
     track: '',
 
-    interests: ['웹 개발', '오픈소스'],
-    desiredRoles: ['Frontend'],
+    interests: [], otherInterest: '', otherRole: '',
+    desiredRoles: [],
 
     hasNoTech: false,
-    techStacks: ['React', 'TypeScript'],
-    techProficiencies: { React: '활용 가능', TypeScript: '입문' },
+    techStacks: [],
+    techProficiencies: {},
 
-    wantedTechStacks: ['Next.js', 'Supabase'],
-    activityTypes: ['공모전', '해커톤'],
-    activityGoals: ['포트폴리오', '실무 경험'],
-    meetingWay: '온·오프라인 혼합',
-    activityDuration: '단기 (1개월 이내)',
-    participationStatus: '팀 구하는 중',
+    wantedTechStacks: [],
+    activityTypes: [],
+    activityGoals: [],
+    meetingWay: '',
+    activityDuration: '',
+    participationStatus: '',
 
     bio: '',
     longBio: '',
     githubUrl: '',
     portfolioUrl: '',
-    visibility: 'public',
+    visibility: '',
   });
 
   // 배열 토글 헬퍼
@@ -191,7 +179,7 @@ export const OnboardingPage: React.FC = () => {
           ...prev,
           hasNoTech: false,
           techStacks: [...prev.techStacks, tech],
-          techProficiencies: { ...prev.techProficiencies, [tech]: '활용 가능' },
+          techProficiencies: prev.techProficiencies,
         };
       }
     });
@@ -199,10 +187,12 @@ export const OnboardingPage: React.FC = () => {
 
   // 기술별 숙련도 변경
   const setTechLevel = (tech: string, level: Proficiency) => {
-    setForm((prev) => ({
-      ...prev,
-      techProficiencies: { ...prev.techProficiencies, [tech]: level },
-    }));
+    setForm((prev) => {
+      const levels = { ...prev.techProficiencies };
+      if (levels[tech] === level) delete levels[tech];
+      else levels[tech] = level;
+      return { ...prev, techProficiencies: levels };
+    });
   };
 
   // '아직 보유 기술 없음' 토글
@@ -245,7 +235,10 @@ export const OnboardingPage: React.FC = () => {
         setStepError('희망 프로젝트 역할을 최소 1개 이상 선택해 주세요.');
         return false;
       }
-      return true;
+    }
+    if (step === 2 && ((form.interests.includes('기타') && !form.otherInterest.trim()) || (form.desiredRoles.includes('기타') && !form.otherRole.trim()))) {
+      setStepError('기타로 선택한 항목을 직접 입력해 주세요.');
+      return false;
     }
     if (step === 3) {
       if (!form.hasNoTech && form.techStacks.length === 0) {
@@ -253,6 +246,17 @@ export const OnboardingPage: React.FC = () => {
         return false;
       }
       return true;
+    }
+    if (step === 5) {
+      if (!form.visibility) { setStepError('프로필 공개 범위를 선택해 주세요.'); return false; }
+      for (const [label, value] of [['GitHub', form.githubUrl], ['포트폴리오', form.portfolioUrl]]) {
+        if (!value.trim()) continue;
+        try {
+          const url = new URL(value.trim());
+          if (!['https:', 'http:'].includes(url.protocol) || !url.hostname.includes('.') || url.username || url.password) throw new Error();
+          if (label === 'GitHub' && (url.hostname !== 'github.com' || !/^\/[A-Za-z0-9-]+\/?$/.test(url.pathname) || url.search || url.hash)) throw new Error();
+        } catch { setStepError(`${label} URL을 확인해 주세요. http:// 또는 https://로 시작하는 주소가 필요합니다.${label === 'GitHub' ? ' https://github.com/사용자명 형식으로 입력해 주세요.' : ''}`); return false; }
+      }
     }
     return true;
   };
@@ -279,6 +283,7 @@ export const OnboardingPage: React.FC = () => {
 
   // 선택 단계 건너뛰기
   const handleSkip = () => {
+    if (currentStep !== 4) return;
     setStepError('');
     if (currentStep < 5) {
       setCurrentStep((prev) => prev + 1);
@@ -288,7 +293,9 @@ export const OnboardingPage: React.FC = () => {
 
   // 최종 완료 제출
   const handleComplete = () => {
-    if (!validateStep(5)) return;
+    for (const step of [1, 2, 3, 5]) {
+      if (!validateStep(step)) { setCurrentStep(step); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+    }
     setShowCompleteModal(true);
   };
 
@@ -305,7 +312,7 @@ export const OnboardingPage: React.FC = () => {
       {/* ─────────────────────────────────────────────────────────
           상단 온보딩 전용 헤더 (사이드바 및 일반 헤더 미표시)
       ───────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-40 bg-[#050508]/90 backdrop-blur-md border-b border-[#1E1E2A] px-4 sm:px-8 py-3.5 flex items-center justify-between">
+      <header className="sticky top-0 z-40 bg-[#050508]/90 backdrop-blur-md border-b border-[#1E1E2A] px-4 sm:px-8 py-3.5 flex flex-wrap gap-3 items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-[#7D39EB] flex items-center justify-center shrink-0">
             <span className="text-white font-black text-base leading-none">B</span>
@@ -586,6 +593,14 @@ export const OnboardingPage: React.FC = () => {
                   })}
                 </div>
               </div>
+              {(['interests', 'desiredRoles'] as const).map((key) => {
+                const field = key === 'interests' ? 'otherInterest' : 'otherRole';
+                return form[key].includes('기타') && <label key={key} className="block text-xs text-[#94A3B8]">
+                  {key === 'interests' ? '기타 관심 분야 (필수)' : '기타 희망 역할 (필수)'}
+                  <input value={form[field]} onChange={(e) => setForm((prev) => ({ ...prev, [field]: e.target.value }))}
+                    className="mt-2 w-full px-3 py-2 rounded-lg bg-[#14151F] border border-[#242634] text-white focus:border-[#7D39EB] focus:outline-none" />
+                </label>;
+              })}
             </div>
           )}
 
@@ -595,9 +610,11 @@ export const OnboardingPage: React.FC = () => {
           {currentStep === 3 && (
             <div className="space-y-6">
               {/* 보유 기술 없음 토글 */}
-              <div
+              <button
+                type="button"
+                aria-pressed={form.hasNoTech}
                 onClick={toggleHasNoTech}
-                className={`p-4 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                className={`w-full text-left p-4 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
                   form.hasNoTech
                     ? 'bg-[#C6FF33]/15 border-[#C6FF33] text-white'
                     : 'bg-[#0B0C10] border-[#1E1E2A] text-[#94A3B8] hover:border-[#383A4E]'
@@ -618,7 +635,7 @@ export const OnboardingPage: React.FC = () => {
                 >
                   {form.hasNoTech && <Check className="w-3.5 h-3.5" />}
                 </div>
-              </div>
+              </button>
 
               {!form.hasNoTech && (
                 <>
@@ -626,58 +643,12 @@ export const OnboardingPage: React.FC = () => {
                   <div className="bg-[#0B0C10] border border-[#1E1E2A] rounded-2xl p-6 sm:p-8 space-y-4">
                     <div className="flex items-center justify-between">
                       <h3 className="text-sm font-bold text-white">보유 기술 스택 선택</h3>
-                      <span className="text-[11px] text-[#64748B]">
+                      <span className="text-[11px] text-[#94A3B8]">
                         선택됨: <strong className="text-[#C6FF33]">{form.techStacks.length}</strong>개
                       </span>
                     </div>
 
-                    <div className="relative">
-                      <Search className="w-4 h-4 text-[#64748B] absolute left-3 top-2.5" />
-                      <input
-                        type="text"
-                        placeholder="기술 이름 검색 (예: React, Python, Spring)..."
-                        value={techSearch}
-                        onChange={(e) => setTechSearch(e.target.value)}
-                        className="w-full pl-9 pr-4 py-2 rounded-lg bg-[#14151F] border border-[#242634] text-white placeholder-[#64748B] focus:border-[#7D39EB] focus:outline-none text-xs"
-                      />
-                    </div>
-
-                    {/* 카테고리별 기술 나열 */}
-                    <div className="space-y-4 pt-2">
-                      {Object.entries(TECH_CATALOG).map(([category, items]) => {
-                        const filtered = techSearch
-                          ? items.filter((it) => it.toLowerCase().includes(techSearch.toLowerCase()))
-                          : items;
-                        if (filtered.length === 0) return null;
-
-                        return (
-                          <div key={category}>
-                            <p className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider mb-1.5">
-                              {category}
-                            </p>
-                            <div className="flex flex-wrap gap-1.5">
-                              {filtered.map((tech) => {
-                                const isSelected = form.techStacks.includes(tech);
-                                return (
-                                  <button
-                                    key={tech}
-                                    type="button"
-                                    onClick={() => toggleTechStack(tech)}
-                                    className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all border ${
-                                      isSelected
-                                        ? 'bg-[#7D39EB] text-white border-[#7D39EB] shadow-sm font-bold'
-                                        : 'bg-[#14151F] text-[#94A3B8] border-[#242634] hover:text-white'
-                                    }`}
-                                  >
-                                    {tech}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                    <TechnologyPicker selected={form.techStacks} onToggle={toggleTechStack} label="보유 기술" />
                   </div>
 
                   {/* 선택한 기술별 숙련도 자가 평가 */}
@@ -685,16 +656,19 @@ export const OnboardingPage: React.FC = () => {
                     <div className="bg-[#0B0C10] border border-[#1E1E2A] rounded-2xl p-6 sm:p-8 space-y-4">
                       <div className="flex items-center justify-between">
                         <div>
-                          <h3 className="text-sm font-bold text-white">기술별 숙련도 설정</h3>
-                          <p className="text-[11px] text-[#64748B]">
-                            숙련도는 주관적 자기평가이며 팀 빌더 및 매칭의 참고 지표로 활용됩니다.
+                          <h3 className="text-sm font-bold text-white">기술별 숙련도 설정 (선택)</h3>
+                          <p className="text-[11px] text-[#94A3B8]">
+                            선택하지 않아도 진행할 수 있습니다. 선택한 단계를 다시 누르면 해제됩니다.
                           </p>
                         </div>
                       </div>
 
+                      <p className="text-[11px] text-[#94A3B8] leading-relaxed">
+                        입문: 기초 개념을 이해하고 학습 중<br />활용 가능: 자료를 참고해 프로젝트에 활용 가능<br />숙련: 독립적인 기능 구현 및 문제 해결 가능
+                      </p>
                       <div className="space-y-2">
                         {form.techStacks.map((tech) => {
-                          const currentLevel = form.techProficiencies[tech] || '활용 가능';
+                          const currentLevel = form.techProficiencies[tech];
                           return (
                             <div
                               key={tech}
@@ -714,7 +688,7 @@ export const OnboardingPage: React.FC = () => {
                                           : level === '활용 가능'
                                           ? 'bg-[#7D39EB] text-white border-[#7D39EB]'
                                           : 'bg-[#C6FF33] text-black border-[#C6FF33] font-bold'
-                                        : 'bg-transparent text-[#64748B] border-transparent hover:text-white'
+                                        : 'bg-transparent text-[#94A3B8] border-transparent hover:text-white'
                                     }`}
                                   >
                                     {level}
@@ -740,74 +714,15 @@ export const OnboardingPage: React.FC = () => {
               {/* 배우고 싶은 기술 */}
               <div>
                 <label className="block text-xs font-semibold text-[#E2E8F0] mb-2">
-                  배우고 싶은 기술 스택 <span className="text-[#64748B]">(선택)</span>
+                  배우고 싶은 기술 스택 <span className="text-[#94A3B8]">(선택)</span>
                 </label>
-                <div className="flex gap-2 mb-2">
-                  <input
-                    type="text"
-                    placeholder="기술 이름 직접 추가 (예: Rust, Docker, PyTorch)..."
-                    value={newWantedTech}
-                    onChange={(e) => setNewWantedTech(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        if (newWantedTech.trim() && !form.wantedTechStacks.includes(newWantedTech.trim())) {
-                          setForm((prev) => ({
-                            ...prev,
-                            wantedTechStacks: [...prev.wantedTechStacks, newWantedTech.trim()],
-                          }));
-                          setNewWantedTech('');
-                        }
-                      }
-                    }}
-                    className="flex-1 px-3 py-2 rounded-lg bg-[#14151F] border border-[#242634] text-xs text-white focus:border-[#7D39EB] focus:outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (newWantedTech.trim() && !form.wantedTechStacks.includes(newWantedTech.trim())) {
-                        setForm((prev) => ({
-                          ...prev,
-                          wantedTechStacks: [...prev.wantedTechStacks, newWantedTech.trim()],
-                        }));
-                        setNewWantedTech('');
-                      }
-                    }}
-                    className="px-3.5 py-2 rounded-lg bg-[#181926] hover:bg-[#242638] text-xs font-bold text-white border border-[#242634]"
-                  >
-                    추가
-                  </button>
-                </div>
-                {form.wantedTechStacks.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {form.wantedTechStacks.map((tech) => (
-                      <span
-                        key={tech}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-[#7D39EB]/15 text-[#C6FF33] border border-[#7D39EB]/30 text-xs"
-                      >
-                        {tech}
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setForm((prev) => ({
-                              ...prev,
-                              wantedTechStacks: prev.wantedTechStacks.filter((t) => t !== tech),
-                            }))
-                          }
-                          className="hover:text-rose-400 font-bold ml-1"
-                        >
-                          ×
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
+                <TechnologyPicker selected={form.wantedTechStacks} onToggle={(tech) => toggleArrayItem('wantedTechStacks', tech)} label="배우고 싶은 기술" />
               </div>
 
               {/* 희망 활동 유형 */}
               <div>
                 <label className="block text-xs font-semibold text-[#E2E8F0] mb-2">
-                  희망 활동 유형 <span className="text-[#64748B]">(다중 선택)</span>
+                  희망 활동 유형 <span className="text-[#94A3B8]">(다중 선택)</span>
                 </label>
                 <div className="flex flex-wrap gap-2">
                   {ACTIVITY_TYPE_OPTIONS.map((item) => {
@@ -833,7 +748,7 @@ export const OnboardingPage: React.FC = () => {
               {/* 활동 목표 */}
               <div>
                 <label className="block text-xs font-semibold text-[#E2E8F0] mb-2">
-                  활동 목표 <span className="text-[#64748B]">(다중 선택)</span>
+                  활동 목표 <span className="text-[#94A3B8]">(다중 선택)</span>
                 </label>
                 <div className="flex flex-wrap gap-2">
                   {ACTIVITY_GOAL_OPTIONS.map((item) => {
@@ -924,7 +839,7 @@ export const OnboardingPage: React.FC = () => {
                         <span className={`w-2 h-2 rounded-full ${st.color}`} />
                         <span className="text-xs font-bold text-white">{st.label}</span>
                       </div>
-                      <span className="text-[10px] text-[#64748B] block">{st.desc}</span>
+                      <span className="text-[10px] text-[#94A3B8] block">{st.desc}</span>
                     </button>
                   ))}
                 </div>
@@ -941,9 +856,9 @@ export const OnboardingPage: React.FC = () => {
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-xs font-semibold text-[#E2E8F0]">
-                    한 줄 소개 <span className="text-[#64748B]">(프로필 카드 노출)</span>
+                    한 줄 소개 <span className="text-[#94A3B8]">(프로필 카드 노출)</span>
                   </label>
-                  <span className="text-[11px] text-[#64748B]">{form.bio.length} / 60자</span>
+                  <span className="text-[11px] text-[#94A3B8]">{form.bio.length} / 60자</span>
                 </div>
                 <input
                   type="text"
@@ -959,9 +874,9 @@ export const OnboardingPage: React.FC = () => {
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-xs font-semibold text-[#E2E8F0]">
-                    상세 소개 & 협업 성향 <span className="text-[#64748B]">(선택)</span>
+                    상세 소개 & 협업 성향 <span className="text-[#94A3B8]">(선택)</span>
                   </label>
-                  <span className="text-[11px] text-[#64748B]">{form.longBio.length} / 500자</span>
+                  <span className="text-[11px] text-[#94A3B8]">{form.longBio.length} / 500자</span>
                 </div>
                 <textarea
                   rows={4}
@@ -1004,11 +919,12 @@ export const OnboardingPage: React.FC = () => {
               {/* 프로필 공개 범위 설정 */}
               <div className="pt-4 border-t border-[#1E1E2A]">
                 <label className="block text-xs font-semibold text-[#E2E8F0] mb-2">
-                  프로필 공개 범위 설정
+                  프로필 공개 범위 설정 (필수)
                 </label>
+                <p className="text-xs text-[#94A3B8] mb-3">공개 범위를 직접 선택해 주세요. 학교 이메일은 공개 범위와 관계없이 일반 회원에게 공개하지 않습니다.</p>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   {[
-                    { key: 'public', label: '전체 공개 (권장)', desc: '팀원 탐색 및 매칭 시 검색 가능', icon: Eye },
+                    { key: 'public', label: 'BRIDGE 회원에게 공개', desc: '인증된 BRIDGE 회원만 열람 가능', icon: Eye },
                     { key: 'team_only', label: '팀원에게만 공개', desc: '합류한 프로젝트 팀원만 열람', icon: Users },
                     { key: 'private', label: '비공개', desc: '검색 및 추천에서 제외', icon: Lock },
                   ].map((v) => {
@@ -1018,7 +934,7 @@ export const OnboardingPage: React.FC = () => {
                       <button
                         key={v.key}
                         type="button"
-                        onClick={() => setForm((prev) => ({ ...prev, visibility: v.key as any }))}
+                        onClick={() => setForm((prev) => ({ ...prev, visibility: v.key as OnboardingFormState['visibility'] }))}
                         className={`p-3 rounded-xl text-left transition-all border flex flex-col justify-between ${
                           isSelected
                             ? 'bg-[#7D39EB]/15 border-[#7D39EB] text-white'
@@ -1026,10 +942,10 @@ export const OnboardingPage: React.FC = () => {
                         }`}
                       >
                         <div className="flex items-center gap-1.5 mb-1">
-                          <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-[#C6FF33]' : 'text-[#64748B]'}`} />
+                          <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-[#C6FF33]' : 'text-[#94A3B8]'}`} />
                           <span className="text-xs font-bold text-white">{v.label}</span>
                         </div>
-                        <span className="text-[10px] text-[#64748B]">{v.desc}</span>
+                        <span className="text-[10px] text-[#94A3B8]">{v.desc}</span>
                       </button>
                     );
                   })}
@@ -1040,7 +956,7 @@ export const OnboardingPage: React.FC = () => {
               <div className="p-3.5 rounded-xl bg-[#141520] border border-[#242634] text-[11px] text-[#94A3B8] leading-relaxed flex items-start gap-2">
                 <Sparkles className="w-4 h-4 text-[#C6FF33] shrink-0 mt-0.5" />
                 <span>
-                  프로젝트 상세 경험, 수상 이력 및 30분 단위 활동 가능 시간표는 서비스 시작 후 **마이페이지**에서 언제든지 추가 등록할 수 있습니다.
+                  프로젝트 상세 경험, 수상 이력 및 30분 단위 활동 가능 시간표는 서비스 시작 후 마이페이지에서 언제든지 추가 등록할 수 있습니다.
                 </span>
               </div>
             </div>
@@ -1050,7 +966,7 @@ export const OnboardingPage: React.FC = () => {
         {/* ─────────────────────────────────────────────────────
             하단 액션 네비게이션 바
         ───────────────────────────────────────────────────── */}
-        <div className="pt-8 border-t border-[#1E1E2A] flex items-center justify-between gap-3 mt-8">
+        <div className="pt-8 border-t border-[#1E1E2A] flex flex-wrap items-center justify-between gap-3 mt-8">
           <button
             type="button"
             onClick={handlePrev}
@@ -1060,13 +976,13 @@ export const OnboardingPage: React.FC = () => {
             {currentStep === 1 ? '로그인으로' : '이전'}
           </button>
 
-          <div className="flex items-center gap-2">
-            {/* 3, 4, 5단계에서 건너뛰기 가능 */}
-            {currentStep >= 3 && currentStep < 5 && (
+          <div className="flex flex-wrap items-center gap-2">
+            {/* 선택 단계인 STEP 04만 건너뛰기 가능 */}
+            {currentStep === 4 && (
               <button
                 type="button"
                 onClick={handleSkip}
-                className="py-2.5 px-3.5 text-xs font-medium text-[#64748B] hover:text-[#94A3B8] transition-colors"
+                className="py-2.5 px-3.5 text-xs font-medium text-[#94A3B8] hover:text-[#94A3B8] transition-colors"
               >
                 나중에 설정하기
               </button>
@@ -1100,45 +1016,46 @@ export const OnboardingPage: React.FC = () => {
       ───────────────────────────────────────────────────── */}
       {showCompleteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
-          <div className="bg-[#0B0C10] border border-[#242634] rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-4">
+          <div className="bg-[#0B0C10] border border-[#242634] rounded-2xl p-6 sm:p-8 max-w-md w-full max-h-[90dvh] overflow-y-auto shadow-2xl space-y-4">
             <div className="w-12 h-12 rounded-xl bg-[#C6FF33]/15 text-[#C6FF33] border border-[#C6FF33]/30 flex items-center justify-center mx-auto">
               <Check className="w-6 h-6 stroke-[3]" />
             </div>
 
             <div className="text-center space-y-1">
-              <h3 className="text-lg font-bold text-white">초기 프로필 설정 완료</h3>
+              <h3 className="text-lg font-bold text-white">프로필 입력 확인</h3>
               <p className="text-xs text-[#94A3B8] leading-relaxed">
-                <strong className="text-white">{form.name}</strong>님의 컴퓨터학부 네트워킹 프로필이 준비되었습니다.
+                <strong className="text-white">{form.name}</strong>님의 입력 내용을 확인했습니다. 아직 프로필은 저장되지 않았습니다.
               </p>
             </div>
 
             <div className="p-3.5 rounded-xl bg-[#141520] border border-[#1E1E2A] text-xs text-[#94A3B8] space-y-1.5 leading-relaxed">
-              <div className="flex justify-between">
+              <div className="flex flex-wrap justify-between gap-2 break-words">
                 <span>학부 / 전공:</span>
                 <span className="text-white font-medium">{form.track} ({form.grade})</span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex flex-wrap justify-between gap-2 break-words">
                 <span>희망 역할:</span>
-                <span className="text-[#C6FF33] font-semibold">{form.desiredRoles.join(', ')}</span>
+                <span className="text-[#C6FF33] font-semibold">{form.desiredRoles.map((role) => role === '기타' ? form.otherRole : role).join(', ')}</span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex flex-wrap justify-between gap-2 break-words">
                 <span>보유 기술:</span>
                 <span className="text-white">
-                  {form.hasNoTech ? '아직 없음 (입문)' : `${form.techStacks.length}개 기술`}
+                  {form.hasNoTech ? '아직 없음' : `${form.techStacks.length}개 기술`}
                 </span>
               </div>
-              <div className="pt-2 border-t border-[#1E1E2A] text-[11px] text-[#64748B]">
-                * 현재 단계에서는 클라이언트 상태만 검증하며, 실제 Supabase DB 저장은 B 담당자 연동 후 자동 활성화됩니다.
+              <div className="pt-2 border-t border-[#1E1E2A] text-[11px] text-[#94A3B8]">
+                * 현재 단계에서는 클라이언트 상태만 검증하며, 저장 기능은 아직 연결되지 않았습니다. 새로고침하거나 화면을 나가면 입력 내용이 사라집니다.
               </div>
             </div>
 
+            <button type="button" onClick={() => setShowCompleteModal(false)} className="w-full py-2 text-xs text-[#94A3B8]">입력 내용 계속 수정하기</button>
             <button
               type="button"
               onClick={handleFinishOnboarding}
               className="w-full py-3 rounded-xl bg-[#C6FF33] hover:bg-[#B8F224] text-black font-extrabold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-sm"
             >
               <Compass className="w-4 h-4" />
-              홈 대시보드로 입장하기
+              홈으로 이동 (입력 내용은 저장되지 않음)
             </button>
           </div>
         </div>

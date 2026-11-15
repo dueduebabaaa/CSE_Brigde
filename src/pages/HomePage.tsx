@@ -1,161 +1,161 @@
-import React from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { PlaceholderCard } from '../components/PlaceholderCard';
-import { Compass, Users, Sparkles, Calendar, Clock, ArrowRight } from 'lucide-react';
+import { ArrowUpRight, BriefcaseBusiness, Clock3, Compass, Users } from 'lucide-react';
+import { Button, EmptyState, LoadingState } from '../components/ui';
+import {
+  CollaborationLinks, ConnectionGraphic, MemberCard, NoticeRow, OpportunityCard,
+  RecruitmentCard, SectionHeading, dashboardLink,
+} from '../components/dashboard/DashboardCards';
+import { EMPTY_DASHBOARD, formatDate, isOpen, summarizeDashboard } from '../components/dashboard/dashboardModel';
+import type { DashboardData } from '../components/dashboard/dashboardModel';
 
-export const HomePage: React.FC = () => {
-  return (
-    <div className="space-y-8">
-      {/* 히어로 배너 — 다크 배경 유지 */}
-      <div className="relative overflow-hidden rounded-2xl bg-[#0A0A0C] border border-[#1E1E2A] p-8 sm:p-10">
-        <div className="absolute -top-24 -right-24 w-80 h-80 bg-[#7D39EB]/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-[#C6FF33]/8 rounded-full blur-3xl pointer-events-none" />
+export interface HomeDashboardProps {
+  data?: DashboardData;
+  profileName?: string | null;
+  loading?: boolean;
+  error?: string | null;
+  demo?: boolean;
+  now?: Date;
+  bookmarkIds?: string[];
+  // Resolve after B's persistence succeeds; the provider then updates bookmarkIds.
+  onBookmark?: (id: string, next: boolean) => Promise<void>;
+  onRetry?: () => void;
+}
 
-        <div className="relative z-10 max-w-2xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#7D39EB]/15 border border-[#7D39EB]/30 text-[#C6FF33] text-xs font-bold mb-4">
-            <span>KNU CSE · PROJECT NETWORK</span>
-          </div>
-          <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight leading-tight mb-3">
-            {/* 모바일: 2줄 / PC(sm↑): 1줄 */}
-            <span className="sm:hidden">
-              우리 사이,{' '}
-              <br />
-              <span className="text-[#C6FF33]">가능성</span>을 잇다.
-            </span>
-            <span className="hidden sm:inline">
-              우리 사이, <span className="text-[#C6FF33]">가능성</span>을 잇다.
-            </span>
-          </h1>
-          <p className="text-sm sm:text-base text-[#94A3B8] mb-6 leading-relaxed">
-            경북대학교 컴퓨터학부 공식 홈페이지 공고 자동 수집부터 관심 분야 기반 팀원 추천, 팀 구성 및 주간 시간표 조율까지 지원하는 올인원 협업 플랫폼 <strong className="text-white">BRIDGE</strong>입니다.
-          </p>
-
-          <div className="flex flex-wrap gap-3">
-            <Link
-              to="/opportunities"
-              className="px-4 py-2.5 rounded-lg bg-[#7D39EB] hover:bg-[#6025C5] text-white text-xs sm:text-sm font-bold flex items-center gap-2 transition-all"
-            >
-              <Compass className="w-4 h-4" />
-              공모전 둘러보기
-            </Link>
-            <Link
-              to="/recruitments"
-              className="px-4 py-2.5 rounded-lg bg-white/10 hover:bg-white/15 border border-white/20 text-white text-xs sm:text-sm font-semibold flex items-center gap-2 transition-all"
-            >
-              <Users className="w-4 h-4" />
-              팀원 모집 게시판
-            </Link>
-          </div>
-        </div>
+export function HomeDashboard({ data, profileName, loading = false, error, demo = false,
+  now = new Date(), bookmarkIds = [], onBookmark, onRetry }: HomeDashboardProps) {
+  const records = data || EMPTY_DASHBOARD;
+  const summary = summarizeDashboard(records, now);
+  const available = Boolean(data) && !loading && !error;
+  // Preserve C's supplied order and scores; no matching algorithm here.
+  const recommendations = records.opportunityMatches.flatMap((match) => {
+    const opportunity = records.opportunities.find((item) => item.id === match.targetId);
+    return opportunity && isOpen(opportunity, now) ? [{ opportunity, match }] : [];
+  }).slice(0, 3);
+  const members = records.memberMatches.flatMap((match) => {
+    const member = records.members.find((item) => item.id === match.targetId && item.isPublic);
+    return member ? [{ member, match }] : [];
+  }).slice(0, 3);
+  const stats = [
+    { label: '모집 중인 공모전', value: summary.open.length, to: '/opportunities', icon: Compass, tone: 'bg-[#7D39EB] text-white border-[#7D39EB]', caption: '새로운 도전의 시작' },
+    { label: '마감 임박 공고', value: summary.closing.length, to: '/opportunities', icon: Clock3, tone: 'bg-[#C6FF33] text-black border-[#C6FF33]', caption: '7일 이내 마감' },
+    { label: '팀원 모집 현황', value: summary.recruiting.length, to: '/recruitments', icon: Users, tone: 'bg-white text-[#0F172A] border-[#E2E8F0]', caption: '함께할 동료를 찾는 팀' },
+    { label: '내 프로젝트 현황', value: summary.activeTeams.length, to: '/projects', icon: BriefcaseBusiness, tone: 'bg-white text-[#0F172A] border-[#E2E8F0]', caption: '현재 진행 중인 프로젝트' },
+  ];
+  return <div className="min-w-0 space-y-5 pb-4 sm:space-y-11 [&_a]:break-words">
+    <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-1.5 sm:gap-3">
+      <div className="min-w-0">
+        {profileName?.trim() && <p className="mb-1 text-sm font-semibold text-[#7D39EB] break-words sm:mb-2">{profileName}님, 반가워요.</p>}
+        <h1 className="text-[26px] font-black leading-tight tracking-tight text-[#0F172A] sm:text-[32px] break-keep">오늘도 새로운 가능성을.</h1>
+        <p className="mt-1 text-sm leading-relaxed text-[#64748B] sm:mt-2">함께할 사람과 새로운 기회를 발견하세요.</p>
       </div>
-
-      {/* 대시보드 상태 안내 카드 */}
-      <PlaceholderCard
-        title="홈 대시보드 (Home Dashboard)"
-        description="학생 개인별 관심 분야와 기술 스택에 최적화된 공모전/대외활동 추천, 학부 공식 홈페이지의 최신 수집 공고, 마감 임박 공고, 그리고 내 프로젝트 현황을 종합적으로 보여주는 메인 관제 화면입니다."
-        assignedRole="A (UI/UX & 프론트엔드) + C (추천 알고리즘)"
-        plannedFeatures={[
-          '학부 공식 홈페이지 공고 자동 수집 피드 (최근 업데이트 시간 표시)',
-          '사용자 기술 스택 및 관심사 기반 AI 공모전 맞춤 추천',
-          '마감 임박 공모전 실시간 카운트다운 배너',
-          '모집 중인 팀원 모집 게시글 퀵 리스트',
-          '내 참여 프로젝트 현황 및 다가오는 미팅 일정 위젯',
-        ]}
-      />
-
-      {/* 주요 기능 바로가기 그리드 — 라이트 카드 */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Link
-          to="/opportunities"
-          className="p-5 rounded-xl bg-white border border-[#E2E8F0] hover:border-[#7D39EB] hover:shadow-md transition-all group flex flex-col justify-between"
-        >
-          <div>
-            <div className="w-10 h-10 rounded-lg bg-[#F4EFFE] text-[#7D39EB] flex items-center justify-center mb-3">
-              <Compass className="w-5 h-5" />
-            </div>
-            <h3 className="text-base font-bold text-[#111111] group-hover:text-[#7D39EB] transition-colors">
-              공모전 &amp; 대외활동
-            </h3>
-            <p className="text-xs text-[#64748B] mt-1">
-              컴퓨터학부 공식 공고 및 직접 등록된 교내외 활동 탐색
-            </p>
-          </div>
-          <div className="mt-4 flex items-center text-xs font-semibold text-[#7D39EB] group-hover:translate-x-1 transition-transform">
-            탐색하기 <ArrowRight className="w-3.5 h-3.5 ml-1" />
-          </div>
-        </Link>
-
-        <Link
-          to="/recruitments"
-          className="p-5 rounded-xl bg-white border border-[#E2E8F0] hover:border-[#7D39EB] hover:shadow-md transition-all group flex flex-col justify-between"
-        >
-          <div>
-            <div className="w-10 h-10 rounded-lg bg-[#F7FEDF] text-[#5a7a00] flex items-center justify-center mb-3">
-              <Users className="w-5 h-5" />
-            </div>
-            <h3 className="text-base font-bold text-[#111111] group-hover:text-[#7D39EB] transition-colors">
-              팀원 모집
-            </h3>
-            <p className="text-xs text-[#64748B] mt-1">
-              공모전별 팀원을 모집하고 지원서를 실시간 관리
-            </p>
-          </div>
-          <div className="mt-4 flex items-center text-xs font-semibold text-[#7D39EB] group-hover:translate-x-1 transition-transform">
-            모집글 보기 <ArrowRight className="w-3.5 h-3.5 ml-1" />
-          </div>
-        </Link>
-
-        <Link
-          to="/team-builder"
-          className="p-5 rounded-xl bg-white border border-[#E2E8F0] hover:border-[#7D39EB] hover:shadow-md transition-all group flex flex-col justify-between"
-        >
-          <div>
-            <div className="w-10 h-10 rounded-lg bg-[#F4EFFE] text-[#7D39EB] flex items-center justify-center mb-3">
-              <Sparkles className="w-5 h-5" />
-            </div>
-            <h3 className="text-base font-bold text-[#111111] group-hover:text-[#7D39EB] transition-colors">
-              스마트 팀 빌더
-            </h3>
-            <p className="text-xs text-[#64748B] mt-1">
-              역할 충족도 분석 및 부족한 역량을 채울 팀원 추천
-            </p>
-          </div>
-          <div className="mt-4 flex items-center text-xs font-semibold text-[#7D39EB] group-hover:translate-x-1 transition-transform">
-            팀 구성하기 <ArrowRight className="w-3.5 h-3.5 ml-1" />
-          </div>
-        </Link>
-
-        <Link
-          to="/schedule"
-          className="p-5 rounded-xl bg-white border border-[#E2E8F0] hover:border-[#7D39EB] hover:shadow-md transition-all group flex flex-col justify-between"
-        >
-          <div>
-            <div className="w-10 h-10 rounded-lg bg-[#F7FEDF] text-[#5a7a00] flex items-center justify-center mb-3">
-              <Calendar className="w-5 h-5" />
-            </div>
-            <h3 className="text-base font-bold text-[#111111] group-hover:text-[#7D39EB] transition-colors">
-              주간 시간표 조율
-            </h3>
-            <p className="text-xs text-[#64748B] mt-1">
-              30분 단위 활동 가능 시간 히트맵 및 회의 시간 자동 추천
-            </p>
-          </div>
-          <div className="mt-4 flex items-center text-xs font-semibold text-[#7D39EB] group-hover:translate-x-1 transition-transform">
-            일정 조율하기 <ArrowRight className="w-3.5 h-3.5 ml-1" />
-          </div>
-        </Link>
-      </div>
-
-      {/* 공식 공고 상태 알림 바 */}
-      <div className="p-4 rounded-xl bg-white border border-[#E2E8F0] flex items-center justify-between flex-wrap gap-3 text-xs text-[#64748B]">
-        <div className="flex items-center gap-2">
-          <Clock className="w-4 h-4 text-[#7D39EB]" />
-          <span>공식 공고 데이터 수집 상태: <strong className="text-[#111111]">초기 환경 구성 완료 (수집 대기)</strong></span>
-        </div>
-        <Link to="/admin/opportunities" className="text-[#7D39EB] hover:text-[#6025C5] font-semibold">
-          관리자 수집 현황 확인 →
-        </Link>
-      </div>
+      <span className="text-xs tabular-nums text-[#64748B] sm:hidden">{new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'long', day: 'numeric', weekday: 'long' }).format(now)}</span>
+      <span className="hidden text-xs tabular-nums text-[#64748B] sm:inline">{new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' }).format(now)}</span>
     </div>
-  );
-};
+
+    {demo && <div role="note" className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 rounded-xl border border-[#7D39EB]/20 bg-[#F4EFFE] px-3 py-2 text-[11px] leading-relaxed text-[#6025C5] sm:gap-2 sm:px-4 sm:py-3 sm:text-xs sm:leading-relaxed">
+      <span className="sm:hidden"><strong>개발용 가상 데이터</strong> · 11.15 기준 · 추천·인물은 예시</span>
+      <span className="hidden sm:inline"><strong>개발용 예시 데이터</strong> · 2026.11.15 기준 · 추천 점수와 인물은 가상 예시입니다.</span>
+      <span><span className="sm:hidden">북마크는 이 화면에서만 유지</span><span className="hidden sm:inline">북마크는 이 화면에서만 유지됩니다.</span></span>
+    </div>}
+
+    <section aria-label="새로운 연결과 주요 현황" className="grid min-w-0 grid-cols-1 gap-3 sm:gap-4 xl:grid-cols-12">
+      <div style={{ containerType: 'inline-size' }} className="relative min-w-0 overflow-hidden rounded-2xl bg-black p-5 text-white sm:p-8 xl:col-span-8">
+        <div className="grid h-full min-w-0 items-center sm:gap-5 sm:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+          <div className="relative z-10 min-w-0 sm:py-5">
+            <p className="mb-3 text-[10px] font-semibold tracking-[0.2em] text-[#94A3B8] sm:mb-5">BRIDGE / KNU CSE</p>
+            <h2 style={{ fontSize: 'clamp(1.75rem, 5.5cqi, 3.5rem)' }} className="font-black leading-[0.98] tracking-[-0.055em] text-white max-sm:pr-20 max-sm:!text-[clamp(1.375rem,6vw,1.75rem)]">
+              BEYOND<br /><span className="text-[#C6FF33]">CONNECTION.</span>
+            </h2>
+            <p className="mb-4 mt-3 text-sm font-medium text-white sm:mb-7 sm:mt-5 sm:text-base">우리 사이, 가능성을 잇다.</p>
+            <div className="flex flex-wrap gap-2">
+              <Link to="/opportunities" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#C6FF33] px-3 py-2 text-xs font-bold text-black hover:bg-[#B8F224] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white sm:px-4 sm:py-3">공모전 둘러보기<ArrowUpRight size={15} aria-hidden="true" /></Link>
+              <Link to="/members" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#383A4E] px-3 py-2 text-xs font-semibold text-white hover:bg-[#181924] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white sm:px-4 sm:py-3">팀원 찾아보기<ArrowUpRight size={15} aria-hidden="true" /></Link>
+            </div>
+          </div>
+          <div className="pointer-events-none absolute right-3 top-9 w-20 min-w-0 sm:static sm:w-auto [&_svg]:max-h-20 sm:[&_svg]:max-h-none"><ConnectionGraphic /></div>
+        </div>
+      </div>
+      <div className="grid min-w-0 grid-cols-2 gap-3 sm:gap-4 xl:col-span-4">
+        {stats.map((stat) => <Link key={stat.label} to={stat.to} aria-label={stat.label + ': ' + (available ? stat.value : '확인 대기')} className={'group flex min-w-0 flex-col justify-between rounded-2xl border p-3 transition-shadow hover:shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#7D39EB] sm:p-5 ' + stat.tone}>
+          <div className="flex items-center justify-between gap-2"><stat.icon size={18} aria-hidden="true" /><ArrowUpRight size={14} aria-hidden="true" className="opacity-60" /></div>
+          <div className="mt-2 sm:mt-5"><span className="text-3xl font-bold leading-none tracking-tight tabular-nums sm:text-4xl sm:leading-none">{available ? stat.value : '—'}</span>
+            <p className="mt-1 text-xs font-bold leading-relaxed break-keep sm:mt-2">{stat.label}</p>
+            <p className="mt-1 hidden text-[10px] leading-relaxed opacity-75 sm:block">{stat.caption}</p></div>
+        </Link>)}
+      </div>
+    </section>
+
+    {loading ? <div role="status" aria-label="대시보드 불러오는 중"><LoadingState variant="skeleton" rows={3} /><p className="mt-3 text-sm text-[#64748B]">새로운 기회를 불러오고 있어요.</p></div>
+      : error ? <div role="alert" className="rounded-2xl border border-[#E2E8F0] bg-white p-6"><p className="text-sm text-[#0F172A]">대시보드를 불러오지 못했어요.</p>{onRetry && <Button onClick={onRetry} className="mt-4 !min-h-11">다시 시도</Button>}</div>
+      : <>
+        <section aria-label="나에게 맞는 공모전">
+          <SectionHeading title="나에게 맞는 공모전" description="관심에서 시작해, 다음 도전으로." to="/opportunities" action="전체 공모전 보기" />
+          {!onBookmark && <p className="mb-3 text-xs text-[#64748B]">북마크는 저장 기능 연결 후 사용할 수 있어요.</p>}
+          {recommendations.length ? <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 [&>article:nth-child(n+3)]:hidden sm:[&>article:nth-child(n+3)]:flex">
+            {recommendations.map(({ opportunity, match }, index) => <OpportunityCard key={opportunity.id} opportunity={opportunity} match={match} now={now} demo={demo} featured={index === 0} bookmarked={bookmarkIds.includes(opportunity.id)} onBookmark={onBookmark} />)}
+          </div> : <div className="rounded-2xl border border-dashed border-[#CBD5E1] bg-white"><EmptyState title="다음 도전을 기다리고 있어요" description={data ? '추천 공모전이 준비되면 여기에 모아드릴게요.' : '아직 공고 데이터를 불러올 수 없어요. 새로운 기회가 준비되면 확인해 보세요.'} icon={<Compass size={22} />} /></div>}
+        </section>
+
+        <div className="grid min-w-0 grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-12">
+          <section aria-label="최신 학부 공고" className="min-w-0 rounded-2xl border border-[#E2E8F0] bg-white p-5 sm:p-6 xl:col-span-7">
+            <SectionHeading title="최신 학부 공고" to="/opportunities" />
+            {records.collectedAt && !demo && <p className="mb-2 text-[11px] text-[#64748B]">최근 수집 {formatDate(records.collectedAt)}</p>}
+            {summary.official.length ? <ul className="[&>li:nth-child(n+3)]:hidden sm:[&>li:nth-child(n+3)]:list-item">{summary.official.slice(0, 3).map((opportunity) => <NoticeRow key={opportunity.id} opportunity={opportunity} now={now} demo={demo} />)}</ul>
+              : <EmptyState title="등록된 학부 공고가 없어요" description="새로운 공고가 도착하면 여기에서 확인하세요." />}
+          </section>
+          <section aria-label="마감 임박 공고" className="min-w-0 rounded-2xl border border-[#C6FF33]/60 bg-[#F7FEDF] p-5 sm:p-6 xl:col-span-5">
+            <SectionHeading title="기회를 놓치지 않도록." description="마감까지 7일, 지금 확인해 보세요." to="/opportunities" />
+            {summary.closing.length ? <ul>{summary.closing.slice(0, 3).map((opportunity) => <NoticeRow key={opportunity.id} opportunity={opportunity} now={now} demo={demo} closing />)}</ul>
+              : <EmptyState title="서두를 공고가 없어요" description="7일 이내 마감되는 공고를 모아드릴게요." />}
+          </section>
+        </div>
+
+        <div className="grid min-w-0 grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-12">
+          <section aria-label="함께할 팀을 찾고 있나요?" className="min-w-0 rounded-2xl border border-[#E2E8F0] bg-white p-5 sm:p-6 xl:col-span-7">
+            <SectionHeading title="함께할 팀을 찾고 있나요?" description="혼자 떠올린 아이디어를, 함께 만드는 시작." to="/recruitments" action="모집글 전체 보기" />
+            {summary.recruiting.length ? <div className="[&>article:nth-child(n+3)]:hidden sm:[&>article:nth-child(n+3)]:block">{summary.recruiting.slice(0, 3).map((recruitment) => <RecruitmentCard key={recruitment.id} recruitment={recruitment} />)}</div>
+              : <EmptyState title="새로운 팀을 기다리고 있어요" description="팀원 모집글이 등록되면 여기에 표시됩니다." />}
+          </section>
+          <section aria-label="연결되고 싶은 동료" className="min-w-0 rounded-2xl border border-[#7D39EB]/15 bg-[#F4EFFE]/50 p-5 sm:p-6 xl:col-span-5">
+            <SectionHeading title="연결되고 싶은 동료" description="서로 다른 가능성이 만나 더 큰 가능성으로." to="/members" />
+            {members.length ? <div className="[&>article:nth-child(n+3)]:hidden sm:[&>article:nth-child(n+3)]:block">{members.map(({ member, match }) => <MemberCard key={member.id} member={member} match={match} demo={demo} />)}</div>
+              : <EmptyState title="새로운 연결을 기다리고 있어요" description="추천할 동료가 준비되면 소개해 드릴게요." icon={<Users size={22} />} />}
+          </section>
+        </div>
+      </>}
+
+    <section aria-label="협업 기능 바로가기">
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-2"><h2 className="text-xl font-extrabold tracking-tight text-[#0F172A]">연결, 그다음은 함께.</h2><Link to="/projects" className={dashboardLink}>나의 작업 공간<ArrowUpRight size={15} aria-hidden="true" /></Link></div>
+      <CollaborationLinks />
+    </section>
+  </div>;
+}
+
+// Replace the DEV source with B's query state, profile and bookmark actions,
+// and C's supplied MatchResult records. Production defaults to empty states.
+export function HomePage() {
+  const [data, setData] = useState<DashboardData>();
+  const [bookmarks, setBookmarks] = useState<string[]>([]);
+  const [demoNow, setDemoNow] = useState<Date>();
+  const [loading, setLoading] = useState(Boolean(import.meta.env.DEV));
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    let active = true;
+    import('../components/dashboard/dashboardDemo').then((fixture) => {
+      if (!active) return;
+      setData(fixture.demoDashboard);
+      setBookmarks(fixture.demoBookmarkIds);
+      setDemoNow(new Date(fixture.DEMO_NOW));
+      setLoading(false);
+    }).catch(() => { if (active) { setError('demo-load-failed'); setLoading(false); } });
+    return () => { active = false; };
+  }, []);
+  const toggleDemoBookmark = async (id: string, next: boolean) => {
+    if (!import.meta.env.DEV) return;
+    setBookmarks((previous) => next ? [...new Set([...previous, id])] : previous.filter((item) => item !== id));
+  };
+  return <HomeDashboard data={data} demo={Boolean(import.meta.env.DEV)} now={demoNow} loading={loading} error={error}
+    bookmarkIds={bookmarks} onBookmark={import.meta.env.DEV ? toggleDemoBookmark : undefined} />;
+}
