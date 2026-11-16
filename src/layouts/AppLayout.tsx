@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   Compass,
@@ -10,236 +10,281 @@ import {
   FolderGit2,
   Bookmark,
   User,
-  ShieldAlert,
   Menu,
   X,
-  LogIn,
-  UserPlus,
+  LogOut,
+  Plus,
 } from 'lucide-react';
+import { Avatar } from '../components/ui/Avatar';
 
+// ─── 네비게이션 그룹 정의 ──────────────────────────────
 interface NavItem {
   name: string;
   path: string;
   icon: React.ComponentType<{ className?: string }>;
   badge?: string;
-  adminOnly?: boolean;
 }
 
-const NAV_ITEMS: NavItem[] = [
-  { name: '홈 대시보드', path: '/', icon: LayoutDashboard },
-  { name: '공모전·대외활동', path: '/opportunities', icon: Compass },
-  { name: '팀원 모집', path: '/recruitments', icon: Users },
-  { name: '팀원 탐색', path: '/members', icon: Search },
-  { name: '팀 빌더', path: '/team-builder', icon: Sparkles, badge: 'AI' },
-  { name: '시간표 조율', path: '/schedule', icon: Calendar },
-  { name: '내 프로젝트', path: '/projects', icon: FolderGit2 },
-  { name: '저장한 공모전', path: '/bookmarks', icon: Bookmark },
-  { name: '마이페이지', path: '/profile', icon: User },
-  { name: '관리자 관리', path: '/admin/opportunities', icon: ShieldAlert, adminOnly: true },
+interface NavGroup {
+  label: string;
+  items: NavItem[];
+}
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    label: 'WORKSPACE',
+    items: [
+      { name: '홈 대시보드', path: '/', icon: LayoutDashboard },
+      { name: '공모전·대외활동', path: '/opportunities', icon: Compass },
+      { name: '팀원 모집', path: '/recruitments', icon: Users },
+      { name: '팀원 탐색', path: '/members', icon: Search },
+    ],
+  },
+  {
+    label: 'COLLABORATION',
+    items: [
+      { name: '팀 빌더', path: '/team-builder', icon: Sparkles, badge: 'AI' },
+      { name: '시간표 조율', path: '/schedule', icon: Calendar },
+      { name: '내 프로젝트', path: '/projects', icon: FolderGit2 },
+    ],
+  },
+  {
+    label: 'PERSONAL',
+    items: [
+      { name: '저장한 공모전', path: '/bookmarks', icon: Bookmark },
+      { name: '마이페이지', path: '/profile', icon: User },
+    ],
+  },
 ];
 
+// 목업 사용자 (B 담당자의 인증 연동 전 임시)
+const MOCK_USER = {
+  name: '개발자 A',
+  email: 'dev@knu.ac.kr',
+};
+
+// ─── 사이드바 컴포넌트 ─────────────────────────────────
+interface SidebarProps {
+  onClose?: () => void;
+  onLogout?: () => void;
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ onClose, onLogout }) => {
+  return (
+    <div className="flex flex-col h-full bg-[#0A0A0C] border-r border-[#1E1E2A]">
+
+      {/* 로고 */}
+      <div className="px-5 py-5 border-b border-[#1E1E2A] flex items-center justify-between">
+        <NavLink
+          to="/"
+          className="flex items-center gap-2.5"
+          onClick={onClose}
+        >
+          {/* 로고 아이콘 — 그라데이션 최소화, 단색 Violet */}
+          <div className="w-8 h-8 rounded-lg bg-[#7D39EB] flex items-center justify-center shrink-0">
+            <span className="text-white font-black text-base leading-none">B</span>
+          </div>
+          <div>
+            <span className="block font-black text-lg text-white tracking-tight leading-none">
+              BRIDGE
+            </span>
+            <span className="block text-[10px] text-[#C6FF33] font-semibold tracking-widest uppercase mt-0.5">
+              BEYOND CONNECTION.
+            </span>
+          </div>
+        </NavLink>
+
+        {/* 모바일 닫기 버튼 */}
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="lg:hidden text-[#64748B] hover:text-white p-1 rounded-md transition-colors"
+            aria-label="메뉴 닫기"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
+      </div>
+
+      {/* 네비게이션 */}
+      <nav className="flex-1 overflow-y-auto px-3 py-4">
+        {NAV_GROUPS.map((group, gi) => (
+          <div key={group.label} className={gi > 0 ? 'mt-5' : ''}>
+            {/* 그룹 레이블 */}
+            <p className="px-2 mb-1 text-[10px] font-bold tracking-widest text-[#4B5563] uppercase select-none">
+              {group.label}
+            </p>
+            <ul className="space-y-0.5">
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <li key={item.path}>
+                    <NavLink
+                      to={item.path}
+                      end={item.path === '/'}
+                      onClick={onClose}
+                      className={({ isActive }) =>
+                        [
+                          'flex items-center justify-between px-2.5 py-2 rounded-lg text-sm font-medium transition-colors duration-100 group',
+                          isActive
+                            ? 'bg-[#7D39EB] text-white'
+                            : 'text-[#94A3B8] hover:text-white hover:bg-[#181924]',
+                        ].join(' ')
+                      }
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Icon className="w-4 h-4 shrink-0" />
+                        <span>{item.name}</span>
+                      </div>
+                      {item.badge && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#C6FF33] text-black font-black tracking-wide">
+                          {item.badge}
+                        </span>
+                      )}
+                    </NavLink>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
+      </nav>
+
+      {/* 하단 사용자 프로필 */}
+      <div className="px-3 py-3 border-t border-[#1E1E2A]">
+        <div className="flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-[#181924] transition-colors group">
+          <Avatar name={MOCK_USER.name} size="sm" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-white leading-tight truncate">
+              {MOCK_USER.name}
+            </p>
+            <p className="text-[11px] text-[#64748B] truncate">{MOCK_USER.email}</p>
+          </div>
+          <button
+            onClick={onLogout}
+            className="shrink-0 text-[#4B5563] hover:text-[#94A3B8] transition-colors p-1 rounded"
+            title="로그아웃"
+            aria-label="로그아웃"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── AppLayout ─────────────────────────────────────────
 export const AppLayout: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
 
-  // 로그인/회원가입 등 전체화면 레이아웃이 필요한 경우도 지원
-  const isAuthPage = location.pathname === '/login' || location.pathname === '/signup';
+  const isAuthed =
+    Boolean(import.meta.env.DEV) &&
+    typeof window !== 'undefined' &&
+    localStorage.getItem('bridge_auth_preview') === 'true';
 
+  const isAuthPage =
+    location.pathname === '/login' ||
+    location.pathname === '/signup' ||
+    location.pathname === '/onboarding' ||
+    (location.pathname === '/' && !isAuthed);
+
+  const handleLogout = () => {
+    localStorage.removeItem('bridge_auth_preview');
+    navigate('/login');
+  };
+
+  // ── 로그인/회원가입 화면: 사이드바 & 헤더 숨김, 풀스크린 독립 렌더링 ──
   if (isAuthPage) {
-    return (
-      <div className="min-h-screen bg-[#0B0C10] flex flex-col justify-between text-slate-100">
-        <header className="px-6 py-4 border-b border-[#242634] flex items-center justify-between">
-          <NavLink to="/" className="flex items-center gap-2 group">
-            <span className="font-extrabold text-2xl tracking-tight text-white group-hover:text-[#C6FF33] transition-colors">
-              BRIDGE
-            </span>
-            <span className="text-[10px] tracking-wider px-2 py-0.5 rounded bg-[#7D39EB]/20 text-[#C6FF33] font-semibold border border-[#7D39EB]/40">
-              KNU CSE
-            </span>
-          </NavLink>
-          <NavLink
-            to="/"
-            className="text-xs text-slate-400 hover:text-white transition-colors"
-          >
-            ← 메인으로 돌아가기
-          </NavLink>
-        </header>
-        <main className="flex-1 flex items-center justify-center p-4">
-          <Outlet />
-        </main>
-        <footer className="py-4 text-center text-xs text-slate-500 border-t border-[#242634]">
-          © BRIDGE. KNU CSE · PROJECT NETWORK. BEYOND CONNECTION.
-        </footer>
-      </div>
-    );
+    return <Outlet />;
   }
 
+  // ── 메인 레이아웃 ──
   return (
-    <div className="min-h-screen bg-[#0B0C10] flex text-slate-100 font-sans">
-      {/* 모바일 사이드바 오버레이 */}
+    <div className="min-h-screen bg-[#F8FAFC] flex font-sans">
+
+      {/* 모바일 오버레이 */}
       {isMobileMenuOpen && (
         <div
-          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 lg:hidden"
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={() => setIsMobileMenuOpen(false)}
+          aria-hidden="true"
         />
       )}
 
-      {/* 데스크톱 & 모바일 반응형 사이드바 */}
+      {/* 사이드바 */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-50 w-64 bg-[#0A0A0C] border-r border-[#242634] flex flex-col transition-transform duration-200 ease-in-out lg:translate-x-0 ${
-          isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        className={[
+          'fixed top-0 bottom-0 left-0 z-50 w-60 transition-transform duration-200 ease-in-out',
+          'lg:translate-x-0',
+          isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full',
+        ].join(' ')}
       >
-        {/* 서비스 로고 및 브랜딩 */}
-        <div className="p-5 border-b border-[#242634]">
-          <div className="flex items-center justify-between">
-            <NavLink
-              to="/"
-              className="flex items-center gap-2"
-              onClick={() => setIsMobileMenuOpen(false)}
-            >
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#7D39EB] to-[#C6FF33] flex items-center justify-center text-black font-black text-lg shadow-md shadow-[#7D39EB]/20">
-                B
-              </div>
-              <div>
-                <span className="font-black text-xl tracking-tight text-white">BRIDGE</span>
-                <span className="block text-[10px] text-[#C6FF33] font-semibold tracking-wider uppercase">
-                  BEYOND CONNECTION.
-                </span>
-              </div>
-            </NavLink>
-            <button
-              className="lg:hidden text-slate-400 hover:text-white p-1 rounded-md"
-              onClick={() => setIsMobileMenuOpen(false)}
-              aria-label="메뉴 닫기"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-          <p className="mt-2 text-[11px] text-slate-400 font-medium">
-            우리 사이, 가능성을 잇다.
-          </p>
-          <div className="mt-1 text-[10px] text-slate-500 font-mono">
-            KNU CSE · PROJECT NETWORK
-          </div>
-        </div>
-
-        {/* 네비게이션 메뉴 */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
-          {NAV_ITEMS.map((item) => {
-            const Icon = item.icon;
-            return (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                end={item.path === '/'}
-                onClick={() => setIsMobileMenuOpen(false)}
-                className={({ isActive }) =>
-                  `flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-semibold transition-all group ${
-                    isActive
-                      ? 'bg-[#7D39EB] text-white shadow-lg shadow-[#7D39EB]/30'
-                      : 'text-slate-400 hover:text-white hover:bg-[#181924]'
-                  }`
-                }
-              >
-                <div className="flex items-center gap-3">
-                  <Icon className="w-4 h-4 shrink-0 transition-transform group-hover:scale-110" />
-                  <span>{item.name}</span>
-                </div>
-                {item.badge && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#C6FF33] text-black font-bold uppercase">
-                    {item.badge}
-                  </span>
-                )}
-                {item.adminOnly && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-medium border border-amber-500/30">
-                    Admin
-                  </span>
-                )}
-              </NavLink>
-            );
-          })}
-        </nav>
-
-        {/* 하단 시스템 상태 & 로그인 바로가기 */}
-        <div className="p-4 border-t border-[#242634] bg-[#0E0F14]">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="w-2 h-2 rounded-full bg-[#C6FF33] animate-pulse" />
-            <span className="text-[11px] text-slate-400">학부 연계 시스템 연결 대기중</span>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <NavLink
-              to="/login"
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-[#181924] hover:bg-[#242634] text-xs font-semibold text-slate-300 hover:text-white transition-colors"
-            >
-              <LogIn className="w-3.5 h-3.5" />
-              로그인
-            </NavLink>
-            <NavLink
-              to="/signup"
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-[#7D39EB]/20 hover:bg-[#7D39EB]/30 border border-[#7D39EB]/40 text-xs font-semibold text-[#C6FF33] transition-colors"
-            >
-              <UserPlus className="w-3.5 h-3.5" />
-              가입
-            </NavLink>
-          </div>
-        </div>
+        <Sidebar onClose={() => setIsMobileMenuOpen(false)} onLogout={handleLogout} />
       </aside>
 
       {/* 메인 영역 */}
-      <div className="flex-1 flex flex-col min-w-0 lg:pl-64">
+      <div className="flex-1 flex flex-col min-w-0 lg:pl-60">
+
         {/* 상단 헤더 */}
-        <header className="sticky top-0 z-30 h-16 bg-[#0B0C10]/90 backdrop-blur-md border-b border-[#242634] px-4 sm:px-6 flex items-center justify-between">
+        <header className="sticky top-0 z-30 h-14 bg-white border-b border-[#E2E8F0] px-4 sm:px-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
+            {/* 모바일 햄버거 */}
             <button
               onClick={() => setIsMobileMenuOpen(true)}
-              className="lg:hidden text-slate-300 hover:text-white p-2 rounded-lg hover:bg-[#181924]"
+              className="lg:hidden text-[#64748B] hover:text-[#0F172A] p-1.5 rounded-lg hover:bg-[#F1F5F9] transition-colors"
               aria-label="메뉴 열기"
             >
               <Menu className="w-5 h-5" />
             </button>
+
+            {/* 헤더 텍스트 */}
             <div className="hidden sm:block">
-              <span className="text-xs text-[#C6FF33] font-bold tracking-wider">
+              <span className="text-xs font-bold text-[#7D39EB] tracking-widest uppercase">
                 KNU CSE
               </span>
-              <h1 className="text-sm font-bold text-white tracking-tight">
-                경북대학교 컴퓨터학부 학생 통합 협업 플랫폼
-              </h1>
+              <p className="text-sm font-semibold text-[#0F172A] leading-tight">
+                경북대학교 컴퓨터학부 학생 협업 플랫폼
+              </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          {location.pathname === '/' && <NavLink to="/" aria-label="BRIDGE 홈" className="absolute left-1/2 inline-flex min-h-11 -translate-x-1/2 items-center gap-2 rounded-lg px-2 sm:hidden">
+            <span aria-hidden="true" className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#7D39EB] text-sm font-black text-white">B</span>
+            <span className="text-base font-black tracking-tight text-black">BRIDGE</span>
+          </NavLink>}
+
+          <div className="flex items-center gap-2">
             <NavLink
               to="/recruitments/new"
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#C6FF33] text-black text-xs font-bold hover:bg-[#B8F224] transition-all shadow-md shadow-[#C6FF33]/20"
+              className="hidden sm:inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[#C6FF33] text-black text-xs font-bold hover:bg-[#B8F224] transition-colors"
             >
-              + 팀원 모집하기
+              <Plus className="w-3.5 h-3.5" />
+              팀원 모집
             </NavLink>
             <NavLink
               to="/profile"
-              className="w-8 h-8 rounded-full bg-[#181924] border border-[#242634] flex items-center justify-center text-slate-300 hover:text-white hover:border-[#7D39EB] transition-colors"
+              className="w-8 h-8 rounded-full border border-[#E2E8F0] flex items-center justify-center hover:border-[#7D39EB] transition-colors overflow-hidden"
               title="마이페이지"
             >
-              <User className="w-4 h-4" />
+              <Avatar name={MOCK_USER.name} size="sm" />
             </NavLink>
           </div>
         </header>
 
-        {/* 본문 콘텐츠 */}
+        {/* 본문 */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
           <Outlet />
         </main>
 
-        {/* 하단 푸터 */}
-        <footer className="border-t border-[#242634] px-6 py-4 bg-[#0A0A0C] text-xs text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <div>
-            <span className="font-bold text-slate-300">BRIDGE</span> — BEYOND CONNECTION. 우리 사이, 가능성을 잇다.
-          </div>
-          <div className="text-[11px] text-slate-500">
-            경북대학교 컴퓨터학부 협업 플랫폼 (KNU CSE)
-          </div>
+        {/* 푸터 */}
+        <footer className="border-t border-[#E2E8F0] px-6 py-3 bg-white text-xs text-[#94A3B8] flex flex-col sm:flex-row items-center justify-between gap-1">
+          <span>
+            <strong className="text-[#0F172A]">BRIDGE</strong> — 우리 사이, 가능성을 잇다.
+          </span>
+          <span>경북대학교 컴퓨터학부 협업 플랫폼</span>
         </footer>
       </div>
     </div>
