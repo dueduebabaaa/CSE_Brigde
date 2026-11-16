@@ -1,5 +1,9 @@
+
 import React, { useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
+import { supabase } from '../lib/supabase';
+
 import {
   LayoutDashboard,
   Compass,
@@ -41,9 +45,25 @@ const NAV_ITEMS: NavItem[] = [
 export const AppLayout: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+
+  const { user, loading, isLoggedIn } = useAuth();
+
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      console.error('로그아웃 실패:', error);
+      alert('로그아웃에 실패했습니다.');
+      return;
+    }
+
+    navigate('/login');
+  };
 
   // 로그인/회원가입 등 전체화면 레이아웃이 필요한 경우도 지원
-  const isAuthPage = location.pathname === '/login' || location.pathname === '/signup';
+  const isAuthPage =
+    location.pathname === '/login' || location.pathname === '/signup';
 
   if (isAuthPage) {
     return (
@@ -57,6 +77,7 @@ export const AppLayout: React.FC = () => {
               KNU CSE
             </span>
           </NavLink>
+
           <NavLink
             to="/"
             className="text-xs text-slate-400 hover:text-white transition-colors"
@@ -64,9 +85,11 @@ export const AppLayout: React.FC = () => {
             ← 메인으로 돌아가기
           </NavLink>
         </header>
+
         <main className="flex-1 flex items-center justify-center p-4">
           <Outlet />
         </main>
+
         <footer className="py-4 text-center text-xs text-slate-500 border-t border-[#242634]">
           © BRIDGE. KNU CSE · PROJECT NETWORK. BEYOND CONNECTION.
         </footer>
@@ -76,6 +99,7 @@ export const AppLayout: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#0B0C10] flex text-slate-100 font-sans">
+
       {/* 모바일 사이드바 오버레이 */}
       {isMobileMenuOpen && (
         <div
@@ -86,10 +110,10 @@ export const AppLayout: React.FC = () => {
 
       {/* 데스크톱 & 모바일 반응형 사이드바 */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-50 w-64 bg-[#0A0A0C] border-r border-[#242634] flex flex-col transition-transform duration-200 ease-in-out lg:translate-x-0 ${
-          isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        className={`fixed top-0 bottom-0 left-0 z-50 w-64 bg-[#0A0A0C] border-r border-[#242634] flex flex-col transition-transform duration-200 ease-in-out lg:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
       >
+
         {/* 서비스 로고 및 브랜딩 */}
         <div className="p-5 border-b border-[#242634]">
           <div className="flex items-center justify-between">
@@ -101,13 +125,17 @@ export const AppLayout: React.FC = () => {
               <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#7D39EB] to-[#C6FF33] flex items-center justify-center text-black font-black text-lg shadow-md shadow-[#7D39EB]/20">
                 B
               </div>
+
               <div>
-                <span className="font-black text-xl tracking-tight text-white">BRIDGE</span>
+                <span className="font-black text-xl tracking-tight text-white">
+                  BRIDGE
+                </span>
                 <span className="block text-[10px] text-[#C6FF33] font-semibold tracking-wider uppercase">
                   BEYOND CONNECTION.
                 </span>
               </div>
             </NavLink>
+
             <button
               className="lg:hidden text-slate-400 hover:text-white p-1 rounded-md"
               onClick={() => setIsMobileMenuOpen(false)}
@@ -116,9 +144,11 @@ export const AppLayout: React.FC = () => {
               <X className="w-5 h-5" />
             </button>
           </div>
+
           <p className="mt-2 text-[11px] text-slate-400 font-medium">
             우리 사이, 가능성을 잇다.
           </p>
+
           <div className="mt-1 text-[10px] text-slate-500 font-mono">
             KNU CSE · PROJECT NETWORK
           </div>
@@ -128,6 +158,7 @@ export const AppLayout: React.FC = () => {
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
+
             return (
               <NavLink
                 key={item.path}
@@ -135,10 +166,9 @@ export const AppLayout: React.FC = () => {
                 end={item.path === '/'}
                 onClick={() => setIsMobileMenuOpen(false)}
                 className={({ isActive }) =>
-                  `flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-semibold transition-all group ${
-                    isActive
-                      ? 'bg-[#7D39EB] text-white shadow-lg shadow-[#7D39EB]/30'
-                      : 'text-slate-400 hover:text-white hover:bg-[#181924]'
+                  `flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-semibold transition-all group ${isActive
+                    ? 'bg-[#7D39EB] text-white shadow-lg shadow-[#7D39EB]/30'
+                    : 'text-slate-400 hover:text-white hover:bg-[#181924]'
                   }`
                 }
               >
@@ -146,11 +176,13 @@ export const AppLayout: React.FC = () => {
                   <Icon className="w-4 h-4 shrink-0 transition-transform group-hover:scale-110" />
                   <span>{item.name}</span>
                 </div>
+
                 {item.badge && (
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#C6FF33] text-black font-bold uppercase">
                     {item.badge}
                   </span>
                 )}
+
                 {item.adminOnly && (
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-medium border border-amber-500/30">
                     Admin
@@ -163,33 +195,66 @@ export const AppLayout: React.FC = () => {
 
         {/* 하단 시스템 상태 & 로그인 바로가기 */}
         <div className="p-4 border-t border-[#242634] bg-[#0E0F14]">
+
           <div className="flex items-center gap-2 mb-3">
             <span className="w-2 h-2 rounded-full bg-[#C6FF33] animate-pulse" />
-            <span className="text-[11px] text-slate-400">학부 연계 시스템 연결 대기중</span>
+            <span className="text-[11px] text-slate-400">
+              학부 연계 시스템 연결 대기중
+            </span>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <NavLink
-              to="/login"
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-[#181924] hover:bg-[#242634] text-xs font-semibold text-slate-300 hover:text-white transition-colors"
-            >
-              <LogIn className="w-3.5 h-3.5" />
-              로그인
-            </NavLink>
-            <NavLink
-              to="/signup"
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-[#7D39EB]/20 hover:bg-[#7D39EB]/30 border border-[#7D39EB]/40 text-xs font-semibold text-[#C6FF33] transition-colors"
-            >
-              <UserPlus className="w-3.5 h-3.5" />
-              가입
-            </NavLink>
-          </div>
+
+          {/* 로그인 상태에 따른 화면 표시 */}
+          {loading ? (
+            <div className="text-center text-xs text-slate-400 py-2">
+              로그인 상태 확인 중...
+            </div>
+          ) : isLoggedIn ? (
+            <>
+              <div className="px-2 py-2 rounded-lg bg-[#181924] mb-2">
+                <div className="text-[10px] text-slate-500 mb-1">
+                  로그인 계정
+                </div>
+
+                <div className="text-xs text-slate-200 truncate">
+                  {user?.email}
+                </div>
+              </div>
+
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-[#181924] hover:bg-[#242634] text-xs font-semibold text-slate-300 hover:text-white transition-colors"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                로그아웃
+              </button>
+            </>
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              <NavLink
+                to="/login"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-[#181924] hover:bg-[#242634] text-xs font-semibold text-slate-300 hover:text-white transition-colors"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                로그인
+              </NavLink>
+
+              <NavLink
+                to="/signup"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-[#7D39EB]/20 hover:bg-[#7D39EB]/30 border border-[#7D39EB]/40 text-xs font-semibold text-[#C6FF33] transition-colors"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                가입
+              </NavLink>
+            </div>
+          )}
         </div>
       </aside>
 
       {/* 메인 영역 */}
       <div className="flex-1 flex flex-col min-w-0 lg:pl-64">
+
         {/* 상단 헤더 */}
         <header className="sticky top-0 z-30 h-16 bg-[#0B0C10]/90 backdrop-blur-md border-b border-[#242634] px-4 sm:px-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -200,10 +265,12 @@ export const AppLayout: React.FC = () => {
             >
               <Menu className="w-5 h-5" />
             </button>
+
             <div className="hidden sm:block">
               <span className="text-xs text-[#C6FF33] font-bold tracking-wider">
                 KNU CSE
               </span>
+
               <h1 className="text-sm font-bold text-white tracking-tight">
                 경북대학교 컴퓨터학부 학생 통합 협업 플랫폼
               </h1>
@@ -217,6 +284,7 @@ export const AppLayout: React.FC = () => {
             >
               + 팀원 모집하기
             </NavLink>
+
             <NavLink
               to="/profile"
               className="w-8 h-8 rounded-full bg-[#181924] border border-[#242634] flex items-center justify-center text-slate-300 hover:text-white hover:border-[#7D39EB] transition-colors"
@@ -237,6 +305,7 @@ export const AppLayout: React.FC = () => {
           <div>
             <span className="font-bold text-slate-300">BRIDGE</span> — BEYOND CONNECTION. 우리 사이, 가능성을 잇다.
           </div>
+
           <div className="text-[11px] text-slate-500">
             경북대학교 컴퓨터학부 협업 플랫폼 (KNU CSE)
           </div>
