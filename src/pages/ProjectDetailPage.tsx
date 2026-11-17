@@ -10,24 +10,24 @@ export const ProjectDetailPage: React.FC = () => {
     <div className="space-y-6">
       <Link
         to="/projects"
-        className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors"
+        className="inline-flex items-center gap-1.5 text-xs text-[#64748B] hover:text-[#111111] transition-colors"
       >
         <ArrowLeft className="w-4 h-4" />
         내 프로젝트 목록으로 돌아가기
       </Link>
 
       {/* 프로젝트 헤더 */}
-      <div className="bg-[#13141C] border border-[#242634] rounded-2xl p-6 sm:p-8 space-y-4">
+      <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 sm:p-8 space-y-4 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span className="text-xs font-bold text-[#7D39EB]">
             참여 공모전: 2026 대학생 오픈소스 SW 개발 챌린지 (ID: {id})
           </span>
-          <span className="px-2.5 py-0.5 rounded text-xs font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+          <span className="px-2.5 py-0.5 rounded text-xs font-bold bg-rose-50 text-rose-600 border border-rose-200">
             제출 마감: D-45
           </span>
         </div>
 
-        <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+        <h1 className="text-2xl sm:text-3xl font-black text-[#111111] tracking-tight">
           KNU 오픈소스 프론트엔드 팀 워크스페이스
         </h1>
 
@@ -37,7 +37,7 @@ export const ProjectDetailPage: React.FC = () => {
             href="https://github.com"
             target="_blank"
             rel="noopener noreferrer"
-            className="px-3 py-1.5 rounded-lg bg-[#0B0C10] border border-[#242634] hover:border-slate-500 text-xs font-semibold text-slate-300 flex items-center gap-1.5 transition-colors"
+            className="px-3 py-1.5 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] hover:border-[#CBD5E1] text-xs font-semibold text-[#64748B] hover:text-[#111111] flex items-center gap-1.5 transition-colors"
           >
             <Github className="w-3.5 h-3.5" /> GitHub 레포지토리
           </a>
@@ -45,13 +45,13 @@ export const ProjectDetailPage: React.FC = () => {
             href="https://figma.com"
             target="_blank"
             rel="noopener noreferrer"
-            className="px-3 py-1.5 rounded-lg bg-[#0B0C10] border border-[#242634] hover:border-slate-500 text-xs font-semibold text-slate-300 flex items-center gap-1.5 transition-colors"
+            className="px-3 py-1.5 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] hover:border-[#CBD5E1] text-xs font-semibold text-[#64748B] hover:text-[#111111] flex items-center gap-1.5 transition-colors"
           >
             <Figma className="w-3.5 h-3.5" /> Figma 디자인
           </a>
           <Link
             to="/schedule"
-            className="px-3 py-1.5 rounded-lg bg-[#7D39EB]/20 border border-[#7D39EB]/40 hover:bg-[#7D39EB]/30 text-xs font-semibold text-[#C6FF33] flex items-center gap-1.5 transition-colors"
+            className="px-3 py-1.5 rounded-lg bg-[#F4EFFE] border border-[#7D39EB]/30 hover:bg-[#7D39EB] hover:text-white text-xs font-semibold text-[#7D39EB] flex items-center gap-1.5 transition-colors"
           >
             <Calendar className="w-3.5 h-3.5" /> 팀 시간표 조율
           </Link>
@@ -70,15 +70,15 @@ export const ProjectDetailPage: React.FC = () => {
       />
 
       {/* 목업 체크리스트 섹션 */}
-      <div className="bg-[#13141C] border border-[#242634] rounded-2xl p-6 space-y-4">
+      <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 space-y-4 shadow-sm">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-white flex items-center gap-2">
-            <CheckSquare className="w-4 h-4 text-[#C6FF33]" />
+          <h3 className="text-sm font-bold text-[#111111] flex items-center gap-2">
+            <CheckSquare className="w-4 h-4 text-[#7D39EB]" />
             프로젝트 체크리스트 (샘플 프리뷰)
           </h3>
           <button
             onClick={() => alert('체크리스트 항목 추가는 추후 연동됩니다.')}
-            className="text-xs text-[#C6FF33] hover:underline flex items-center gap-1 font-semibold"
+            className="text-xs text-[#7D39EB] hover:underline flex items-center gap-1 font-semibold"
           >
             <Plus className="w-3.5 h-3.5" /> 항목 추가
           </button>
@@ -93,19 +93,19 @@ export const ProjectDetailPage: React.FC = () => {
           ].map((item, idx) => (
             <div
               key={idx}
-              className="p-3 rounded-lg bg-[#0B0C10] border border-[#242634] flex items-center justify-between"
+              className="p-3 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] flex items-center justify-between"
             >
               <div className="flex items-center gap-3">
                 <input
                   type="checkbox"
                   defaultChecked={item.done}
-                  className="rounded bg-slate-800 border-slate-700 text-[#7D39EB] focus:ring-0"
+                  className="rounded border-[#CBD5E1] text-[#7D39EB] focus:ring-0"
                 />
-                <span className={item.done ? 'line-through text-slate-500' : 'text-slate-200'}>
+                <span className={item.done ? 'line-through text-[#94A3B8]' : 'text-[#111111]'}>
                   {item.title}
                 </span>
               </div>
-              <span className="text-[11px] px-2 py-0.5 rounded bg-[#181924] text-slate-400">
+              <span className="text-[11px] px-2 py-0.5 rounded bg-white text-[#64748B] border border-[#E2E8F0]">
                 담당: {item.assignee}
               </span>
             </div>
