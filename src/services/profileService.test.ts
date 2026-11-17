@@ -16,7 +16,7 @@ vi.mock('../lib/supabase', () => ({
   },
 }));
 
-import { mapProfileRow, profileVisibilityFromRow, updateMyProfile } from './profileService';
+import { isProfileComplete, mapProfileRow, profileVisibilityFromRow, updateMyProfile } from './profileService';
 
 const baseProfile = {
   id: 'user-1',
@@ -79,6 +79,16 @@ describe('프로필 행 변환', () => {
   });
 });
 
+describe('프로필 완료 판정', () => {
+  it('nickname이 빈 문자열이어도 프로필을 완료로 판정한다', () => {
+    expect(isProfileComplete(mapProfileRow({ ...baseProfile, nickname: '' }))).toBe(true);
+  });
+
+  it('name이 빈 문자열이면 프로필을 미완료로 판정한다', () => {
+    expect(isProfileComplete(mapProfileRow({ ...baseProfile, name: '' }))).toBe(false);
+  });
+});
+
 describe('내 프로필 부분 수정', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -117,6 +127,34 @@ describe('내 프로필 부분 수정', () => {
       interests: [],
       tech_stacks: baseProfile.tech_stacks,
     });
+  });
+
+  it('name만 전달하면 name과 updated_at만 update한다', async () => {
+    supabaseMocks.maybeSingle.mockResolvedValueOnce({
+      data: { ...baseProfile, name: '새 이름' },
+      error: null,
+    });
+
+    const result = await updateMyProfile({ name: '새 이름' });
+
+    const payload = supabaseMocks.update.mock.calls[0][0];
+    expect(payload).toEqual({ name: '새 이름', updated_at: expect.any(String) });
+    expect(payload).not.toHaveProperty('nickname');
+    expect(result?.name).toBe('새 이름');
+  });
+
+  it('nickname만 전달하면 nickname과 updated_at만 update한다', async () => {
+    supabaseMocks.maybeSingle.mockResolvedValueOnce({
+      data: { ...baseProfile, nickname: '새 닉네임' },
+      error: null,
+    });
+
+    const result = await updateMyProfile({ nickname: '새 닉네임' });
+
+    const payload = supabaseMocks.update.mock.calls[0][0];
+    expect(payload).toEqual({ nickname: '새 닉네임', updated_at: expect.any(String) });
+    expect(payload).not.toHaveProperty('name');
+    expect(result?.nickname).toBe('새 닉네임');
   });
 
   it('로그인한 사용자 ID를 update 조건에 사용한다', async () => {
