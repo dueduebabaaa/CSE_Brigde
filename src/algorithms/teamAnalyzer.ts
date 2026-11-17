@@ -15,6 +15,7 @@
 
 import { UserProfile } from '../types';
 import { getCanonicalTag } from './tagClassification';
+import { isSameRole, normalizeRoleToStandardKey } from './memberMatching';
 
 /**
  * 레이더 차트 6개 핵심 분석 분야
@@ -237,17 +238,53 @@ export function getCandidateCapableSubjects(roles: string[] | undefined): TechSu
 }
 
 /**
+ * 학생의 희망 역할 목록으로부터 담당 가능한 모든 표준 역할 및 분야 목록을 도출합니다.
+ * (FullStack의 경우 Frontend와 Backend 모두 포함, PM/기획, Mobile 등 비레이더 역할도 포함)
+ */
+export function getCandidateAllCapableRoles(roles: string[] | undefined): string[] {
+  const result = new Set<string>();
+  if (!roles) return [];
+
+  for (const r of roles) {
+    if (!r || !r.trim()) continue;
+    const cleaned = r.trim().toLowerCase();
+    if (cleaned.includes('fullstack') || cleaned.includes('풀스택')) {
+      result.add('Frontend');
+      result.add('Backend');
+      continue;
+    }
+
+    // 6대 subject 매핑
+    const subj = normalizeRoleToSubject(r);
+    if (subj) {
+      result.add(subj);
+    }
+
+    // 11대 표준 역할 key 매핑 (PM/기획, Mobile, Security, Marketing 등)
+    const stdKey = normalizeRoleToStandardKey(r);
+    if (stdKey) {
+      result.add(stdKey);
+    }
+
+    result.add(r.trim());
+  }
+
+  return Array.from(result);
+}
+
+/**
  * 최대 이분 매칭 (Maximum Bipartite Matching)
  * 
  * 한 팀원이 하나의 필수 역할만 담당하도록 1인 1역할을 엄격히 배정하여
  * 충족할 수 있는 최대 필수 역할 개수 및 배정 결과를 산출합니다.
+ * (DATA_CONTRACT.md 3.3절: PM/기획, Marketing 등 레이더 6축 밖의 필수 역할도 정상 매칭 지원)
  */
 function solveMaximumRoleAssignment(
-  memberCapableRoles: TechSubject[][],
-  requiredRoles: TechSubject[]
+  memberCapableRoles: string[][],
+  requiredRoles: string[]
 ): {
-  coveredRoles: TechSubject[];
-  missingRoles: TechSubject[];
+  coveredRoles: string[];
+  missingRoles: string[];
 } {
   const numMembers = memberCapableRoles.length;
   const numRoles = requiredRoles.length;
@@ -266,7 +303,11 @@ function solveMaximumRoleAssignment(
     const capable = memberCapableRoles[memberIdx];
     for (let rIdx = 0; rIdx < numRoles; rIdx++) {
       const reqRole = requiredRoles[rIdx];
-      if (capable.includes(reqRole) && !visitedRoles[rIdx]) {
+      const isCapable = capable.some(
+        (c) => c.toLowerCase() === reqRole.toLowerCase() || isSameRole(c, reqRole)
+      );
+
+      if (isCapable && !visitedRoles[rIdx]) {
         visitedRoles[rIdx] = true;
 
         // 해당 역할이 비어있거나, 기존에 배정된 학생이 다른 역할로 옮길 수 있는 경우
@@ -284,8 +325,8 @@ function solveMaximumRoleAssignment(
     dfs(mIdx, visitedRoles);
   }
 
-  const coveredRoles: TechSubject[] = [];
-  const missingRoles: TechSubject[] = [];
+  const coveredRoles: string[] = [];
+  const missingRoles: string[] = [];
 
   for (let rIdx = 0; rIdx < numRoles; rIdx++) {
     if (roleMatch[rIdx] !== -1) {
@@ -368,7 +409,7 @@ function calculateRadarScores(teamMembers: UserProfile[]): RadarChartScore[] {
  *    - 최대 100점 만점으로 정수 반환
  */
 function findRecommendedCandidates(
-  missingRoles: TechSubject[],
+  missingRoles: string[],
   teamMembers: UserProfile[],
   candidatesPool: UserProfile[]
 ): TeamBalanceAnalysisResult['recommendedCandidates'] {
@@ -392,7 +433,9 @@ function findRecommendedCandidates(
   const recommendations: TeamBalanceAnalysisResult['recommendedCandidates'] = [];
 
   for (const candidate of validCandidates) {
+    const capableAllRoles = getCandidateAllCapableRoles(candidate.desiredRoles);
     const capableSubjects = getCandidateCapableSubjects(candidate.desiredRoles);
+
     // 후보 학생의 기술 스택 분야 매핑
     const candidateTechSubjects = new Set<TechSubject>();
     for (const tech of candidate.techStacks ?? []) {
@@ -407,8 +450,13 @@ function findRecommendedCandidates(
 
     // 후보가 채워줄 수 있는 부족한 역할 찾기
     for (const missing of missingRoles) {
-      const hasRoleMatch = capableSubjects.includes(missing);
-      const hasTechMatch = candidateTechSubjects.has(missing);
+      const isMissingSubject = ALL_TECH_SUBJECTS.includes(missing as TechSubject);
+      const hasRoleMatch = isMissingSubject
+        ? capableSubjects.includes(missing as TechSubject)
+        : capableAllRoles.some((r) => r.toLowerCase() === missing.toLowerCase() || isSameRole(r, missing));
+      const hasTechMatch = isMissingSubject
+        ? candidateTechSubjects.has(missing as TechSubject)
+        : false;
 
       // 부족한 역할을 희망하거나 해당 분야 기술을 가진 경우 추천 대상
       if (hasRoleMatch || hasTechMatch) {
@@ -417,10 +465,12 @@ function findRecommendedCandidates(
 
         // 기술 기여도 (최대 40점)
         let relevantTechCount = 0;
-        for (const tech of candidate.techStacks ?? []) {
-          const canonical = getCanonicalTag(tech).toLowerCase();
-          if (TECH_TO_SUBJECT_MAP[canonical]?.includes(missing)) {
-            relevantTechCount++;
+        if (isMissingSubject) {
+          for (const tech of candidate.techStacks ?? []) {
+            const canonical = getCanonicalTag(tech).toLowerCase();
+            if (TECH_TO_SUBJECT_MAP[canonical]?.includes(missing as TechSubject)) {
+              relevantTechCount++;
+            }
           }
         }
         let techScore = 0;
@@ -455,10 +505,11 @@ function findRecommendedCandidates(
 
 /**
  * 한국어 경고 및 균형 상태 안내 메시지를 생성합니다.
+ * DATA_CONTRACT.md 3.3절 준수: PM/기획, 마케팅 등 레이더 축 밖의 필수 역할 누락에 따른 거짓 충족 안내 방지
  */
 function generateWarnings(
   hasExplicitRoles: boolean,
-  missingRoles: TechSubject[],
+  missingRoles: string[],
   teamMembers: UserProfile[]
 ): string[] {
   const warnings: string[] = [];
@@ -480,18 +531,25 @@ function generateWarnings(
   if (missingRoles.length === 0) {
     warnings.push('프로젝트 필수 역할이 모두 충족되었습니다.');
   } else {
-    // 부족한 역할별 한국어 명칭 안내
-    const koreanRoleNames: Record<TechSubject, string> = {
+    // 부족한 역할별 한국어 명칭 안내 (11대 표준 역할 및 6대 축 매핑)
+    const koreanRoleNames: Record<string, string> = {
       'Frontend': '프론트엔드',
       'Backend': '백엔드',
       'Database': '데이터베이스',
       'AI/Data': 'AI/데이터',
       'DevOps': '데브옵스/인프라',
       'UI/UX': 'UI/UX',
+      'AI/ML': 'AI/머신러닝',
+      'Data': '데이터 분석',
+      'PM/기획': 'PM/서비스 기획',
+      'Mobile': '모바일 개발',
+      'Security': '정보보안',
+      'Marketing': '마케팅',
+      '기타': '기타 역할',
     };
 
     for (const missing of missingRoles) {
-      const roleName = koreanRoleNames[missing] ?? missing;
+      const roleName = koreanRoleNames[missing] ?? koreanRoleNames[missing.toUpperCase()] ?? missing;
       warnings.push(`현재 팀에 ${roleName} 담당자가 부족합니다.`);
     }
   }
@@ -534,7 +592,7 @@ function generateWarnings(
  * 
  * @param teamMembers 현재 팀원 프로필 목록
  * @param allCandidatesPool 추천 대상 전체 학생 풀
- * @param requiredRoles 프로젝트에 반드시 필요한 역할 목록 (예: ['Frontend', 'Backend', 'UI/UX'])
+ * @param requiredRoles 프로젝트에 반드시 필요한 역할 목록 (예: ['Frontend', 'Backend', 'UI/UX', 'PM/기획'])
  * @returns 1인 1역할 기반 정확한 충족/부족 역할 및 보완 후보 추천 결과
  */
 export function analyzeTeamBalanceForRoles(
@@ -548,15 +606,19 @@ export function analyzeTeamBalanceForRoles(
   // 1. 레이더 차트 점수 계산 (항상 6개 분야 산출)
   const radarData = calculateRadarScores(members);
 
-  // 2. 필수 역할 정규화
+  // 2. 필수 역할 정규화 (PM/기획, 마케팅 등 레이더 밖의 필수 역할도 누락 없이 보존)
   const hasExplicitRoles = Array.isArray(requiredRoles) && requiredRoles.length > 0;
-  const normalizedRequiredRoles: TechSubject[] = [];
+  const normalizedRequiredRoles: string[] = [];
 
   if (hasExplicitRoles) {
     for (const r of requiredRoles) {
+      if (!r || !r.trim()) continue;
       const subj = normalizeRoleToSubject(r);
       if (subj) {
         normalizedRequiredRoles.push(subj);
+      } else {
+        const stdKey = normalizeRoleToStandardKey(r);
+        normalizedRequiredRoles.push(stdKey || r.trim());
       }
     }
   }
@@ -567,8 +629,8 @@ export function analyzeTeamBalanceForRoles(
   let isBalanced = false;
 
   if (hasExplicitRoles && normalizedRequiredRoles.length > 0) {
-    // 각 팀원이 수행 가능한 역할 목록
-    const memberCapableRoles = members.map((m) => getCandidateCapableSubjects(m.desiredRoles));
+    // 각 팀원이 수행 가능한 모든 역할 목록 (레이더 6축 + 11대 표준 역할 + 자유 입력값)
+    const memberCapableRoles = members.map((m) => getCandidateAllCapableRoles(m.desiredRoles));
     const matchResult = solveMaximumRoleAssignment(memberCapableRoles, normalizedRequiredRoles);
 
     coveredRoles = matchResult.coveredRoles;
@@ -591,13 +653,13 @@ export function analyzeTeamBalanceForRoles(
   // 4. 경고 메시지 생성
   const warnings = generateWarnings(
     hasExplicitRoles,
-    missingRoles as TechSubject[],
+    missingRoles,
     members
   );
 
   // 5. 부족한 역할 보완 인재 추천
   const recommendedCandidates = findRecommendedCandidates(
-    missingRoles as TechSubject[],
+    missingRoles,
     members,
     candidates
   );

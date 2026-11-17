@@ -55,9 +55,11 @@ function buildMemberSlotGrid(availabilities: Availability[] | undefined): boolea
       item &&
       item.isAvailable === true &&
       typeof item.dayOfWeek === 'number' &&
+      Number.isInteger(item.dayOfWeek) &&
       item.dayOfWeek >= 0 &&
       item.dayOfWeek <= 6 &&
       typeof item.slot === 'number' &&
+      Number.isInteger(item.slot) &&
       item.slot >= 0 &&
       item.slot <= 47
     ) {

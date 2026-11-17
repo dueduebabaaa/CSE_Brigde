@@ -39,14 +39,24 @@ export function recommendOpportunities(
     return [];
   }
 
-  // 1. 모집 상태 및 마감일 필터링
+  // 1. 모집 상태, 게시일 및 마감일 필터링 (DATA_CONTRACT.md 8.3절 준수)
   // - active: 모집 진행 중인 공고만 추천 대상
   // - closed, draft, needs_confirmation: 제외
+  // - postedAt이 기준 시각보다 미래인 게시 전 공고: 제외
   // - deadline이 실제로 지난 공고: active여도 제외
   // - deadline이 null인 경우: 날짜를 임의로 생성하지 않고 active 상태 유지
+  // - applicationStart가 미래인 공고: 게시 완료(postedAt <= currentDate) 상태이면 모집 예정으로 추천 허용
   const activeOpportunities = opportunities.filter((opp) => {
     if (opp.status !== 'active') {
       return false;
+    }
+
+    // 게시일 검사 (미래에 게시될 예정인 공고 제외)
+    if (opp.postedAt) {
+      const postedTime = new Date(opp.postedAt).getTime();
+      if (!Number.isNaN(postedTime) && postedTime > currentDate.getTime()) {
+        return false;
+      }
     }
 
     if (opp.deadline !== null) {
