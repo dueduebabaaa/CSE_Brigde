@@ -1,3 +1,4 @@
+import { parseOpportunityTimestamp } from './inputSafety';
 /**
  * BRIDGE — 공모전 맞춤 추천 알고리즘 (Opportunity Recommendation)
  * 
@@ -9,6 +10,7 @@ import { UserProfile, Opportunity } from '../types';
 import {
   classifyTags,
   getCanonicalTag,
+  getCanonicalFieldTag,
   formatWithJosa,
 } from './tagClassification';
 
@@ -47,26 +49,14 @@ export function recommendOpportunities(
   // - deadline이 null인 경우: 날짜를 임의로 생성하지 않고 active 상태 유지
   // - applicationStart가 미래인 공고: 게시 완료(postedAt <= currentDate) 상태이면 모집 예정으로 추천 허용
   const activeOpportunities = opportunities.filter((opp) => {
-    if (opp.status !== 'active') {
-      return false;
-    }
-
-    // 게시일 검사 (미래에 게시될 예정인 공고 제외)
-    if (opp.postedAt) {
-      const postedTime = new Date(opp.postedAt).getTime();
-      if (!Number.isNaN(postedTime) && postedTime > currentDate.getTime()) {
-        return false;
-      }
-    }
-
+    if (opp.status !== 'active' || !Number.isFinite(currentDate.getTime())) return false;
+    const postedAt = parseOpportunityTimestamp(opp.postedAt);
+    if (!postedAt || Date.parse(postedAt) > currentDate.getTime()) return false;
+    if (opp.applicationStart !== null && !parseOpportunityTimestamp(opp.applicationStart)) return false;
     if (opp.deadline !== null) {
-      const deadlineTime = new Date(opp.deadline).getTime();
-      // 유효하지 않은 날짜 포맷이거나 이미 마감 시간이 지난 경우 제외
-      if (Number.isNaN(deadlineTime) || deadlineTime < currentDate.getTime()) {
-        return false;
-      }
+      const deadline = parseOpportunityTimestamp(opp.deadline);
+      if (!deadline || Date.parse(deadline) < currentDate.getTime()) return false;
     }
-
     return true;
   });
 
@@ -78,7 +68,7 @@ export function recommendOpportunities(
   const userInterests = Array.from(
     new Set(
       (userProfile.interests ?? [])
-        .map((tag) => getCanonicalTag(tag))
+        .map((tag) => getCanonicalFieldTag(tag))
         .filter((tag) => tag.length > 0)
     )
   );
@@ -115,8 +105,8 @@ export function recommendOpportunities(
     // 일치 항목 도출
     // ① 관심 분야 일치 목록: 공모전 분야 태그 중 학생의 관심 분야와 일치하는 것
     const matchedFields: string[] = [];
-    for (const [lowerField, canonical] of oppFieldMap.entries()) {
-      if (userInterestSet.has(lowerField)) {
+    for (const canonical of oppFieldMap.values()) {
+      if (userInterestSet.has(getCanonicalFieldTag(canonical).toLowerCase())) {
         matchedFields.push(canonical);
       }
     }

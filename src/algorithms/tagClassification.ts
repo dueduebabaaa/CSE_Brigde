@@ -524,6 +524,11 @@ export function normalizeInterest(interest: string): string {
   return trimmed;
 }
 
+/** Compare legacy field aliases with the new standard interest labels. */
+export function getCanonicalFieldTag(tag: string): string {
+  return getCanonicalTag(normalizeInterest(getCanonicalTag(tag)));
+}
+
 /**
  * 단일 태그의 카테고리를 분류합니다.
  * 분류 기준이 불분명한 태그는 임의로 기술이나 분야로 분류하지 않고 'general'로 처리합니다.

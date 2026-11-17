@@ -1,3 +1,4 @@
+import { isPublicAlgorithmCandidate } from './inputSafety';
 /**
  * BRIDGE — 팀 빌더 역량 균형도 분석 알고리즘 (Team Analyzer)
  * 
@@ -423,7 +424,7 @@ function findRecommendedCandidates(
   const seenIds = new Set<string>();
   const validCandidates = candidatesPool.filter((c) => {
     if (!c || !c.id) return false;
-    if (c.isPublic === false) return false;
+    if (!isPublicAlgorithmCandidate(c)) return false;
     if (teamMemberIds.has(c.id)) return false;
     if (seenIds.has(c.id)) return false;
     seenIds.add(c.id);

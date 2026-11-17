@@ -1,3 +1,4 @@
+import { filterValidAvailabilities, isPublicAlgorithmCandidate } from './inputSafety';
 /**
  * BRIDGE — 팀원 매칭 적합도 계산 알고리즘 (Member Matching)
  * 
@@ -276,7 +277,7 @@ function extractAvailableSlotKeys(availabilities: Availability[] | undefined): S
     return slotSet;
   }
 
-  for (const item of availabilities) {
+  for (const item of filterValidAvailabilities(availabilities)) {
     if (
       item &&
       item.isAvailable &&
@@ -325,7 +326,7 @@ export function calculateMemberMatch(
   const seenUserIds = new Set<string>();
   const validCandidates = candidates.filter((c) => {
     if (!c.profile || !c.profile.id) return false;
-    if (c.profile.isPublic === false) return false;
+    if (!isPublicAlgorithmCandidate(c.profile)) return false;
     if (seenUserIds.has(c.profile.id)) return false;
     seenUserIds.add(c.profile.id);
     return true;

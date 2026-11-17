@@ -1,3 +1,14 @@
+import { filterValidAvailabilities, parseOpportunityTimestamp } from './inputSafety';
+import type { ProfileVisibility } from './inputSafety';
+export { filterValidAvailabilities, isValidAvailabilityItem } from './inputSafety';
+
+/** Compatibility projection for algorithms, not a lossless DTO mapper or DB payload. */
+export interface AlgorithmUserProfile extends UserProfile {
+  visibility: ProfileVisibility | null;
+  otherInterest?: string;
+  otherRole?: string;
+}
+
 /**
  * BRIDGE — 알고리즘 입력 데이터 변환 및 검증 유틸리티
  * 
@@ -22,57 +33,7 @@ export interface ValidationResult<T> {
 }
 
 /**
- * 단일 Availability 객체의 유효성을 정밀 검증합니다.
- * - dayOfWeek: 0(일) ~ 6(토)의 유한 정수
- * - slot: 0 ~ 47의 유한 정수 (30분 단위 슬롯)
- * - isAvailable: boolean
- */
-export function isValidAvailabilityItem(item: unknown): item is Availability {
-  if (!item || typeof item !== 'object') return false;
-  const a = item as Partial<Availability>;
-
-  if (typeof a.id !== 'string' || typeof a.userId !== 'string') {
-    return false;
-  }
-
-  if (
-    typeof a.dayOfWeek !== 'number' ||
-    !Number.isInteger(a.dayOfWeek) ||
-    a.dayOfWeek < 0 ||
-    a.dayOfWeek > 6
-  ) {
-    return false;
-  }
-
-  if (
-    typeof a.slot !== 'number' ||
-    !Number.isInteger(a.slot) ||
-    a.slot < 0 ||
-    a.slot > 47
-  ) {
-    return false;
-  }
-
-  if (typeof a.isAvailable !== 'boolean') {
-    return false;
-  }
-
-  return true;
-}
-
-/**
- * Availability 배열에서 유효하지 않은 슬롯(소수, NaN, 음수, 범위 초과 등)을 안전하게 필터링합니다.
- */
-export function filterValidAvailabilities(availabilities: unknown): Availability[] {
-  if (!availabilities || !Array.isArray(availabilities)) {
-    return [];
-  }
-
-  return availabilities.filter(isValidAvailabilityItem);
-}
-
-/**
- * 팀원별 시간표 맵(Record<string, Availability[]>)을 검증하고 정제합니다.
+ * 팀 맵을 정제합니다. 사용자 ID 불일치는 제외하고 상충 슬롯은 false 우선입니다.
  */
 export function validateAndCleanTeamAvailabilities(
   input: unknown
@@ -99,7 +60,7 @@ export function validateAndCleanTeamAvailabilities(
  * - desiredRoles, interests: 정규화 적용 및 자유 입력값 보존
  * - visibility/isPublic 호환성 매핑
  */
-export function validateUserProfile(dto: unknown): ValidationResult<UserProfile> {
+export function validateUserProfile(dto: unknown): ValidationResult<AlgorithmUserProfile> {
   const errors: string[] = [];
 
   if (!dto || typeof dto !== 'object' || Array.isArray(dto)) {
@@ -118,6 +79,10 @@ export function validateUserProfile(dto: unknown): ValidationResult<UserProfile>
 
   if (!u.grade || typeof u.grade !== 'string') {
     errors.push('grade는 필수 문자열이어야 합니다.');
+  }
+
+  if (typeof u.grade === 'string' && !['1학년', '2학년', '3학년', '4학년', '대학원생'].includes(u.grade)) {
+    errors.push('grade가 유효한 학년이 아닙니다.');
   }
 
   if (!u.track || typeof u.track !== 'string') {
@@ -189,18 +154,30 @@ export function validateUserProfile(dto: unknown): ValidationResult<UserProfile>
   }
 
   // isPublic / visibility 호환성
-  let isPublic = true;
-  if (typeof u.isPublic === 'boolean') {
-    isPublic = u.isPublic;
-  } else if (typeof u.visibility === 'string') {
-    isPublic = u.visibility === 'public';
+  for (const field of ['techStacks', 'interests', 'desiredRoles', 'wantedTechStacks']) {
+    const value = u[field];
+    if (value != null && (!Array.isArray(value) || Array.from(value).some(item => typeof item !== 'string'))) errors.push(field + ': expected string array');
   }
+  for (const [selection, detail] of [['interests', 'otherInterest'], ['desiredRoles', 'otherRole']] as const) {
+    if (u[detail] != null && typeof u[detail] !== 'string') errors.push(detail + ': expected string');
+    if (Array.isArray(u[selection]) && u[selection].includes('기타') &&
+        (typeof u[detail] !== 'string' || !u[detail].trim())) errors.push(detail + ': required for other selection');
+  }
+  let visibility: ProfileVisibility | null = null;
+  if (u.visibility !== undefined) {
+    if (u.visibility === 'public' || u.visibility === 'team_only' || u.visibility === 'private') visibility = u.visibility;
+    else errors.push('visibility: invalid scope');
+  }
+  if (u.isPublic !== undefined && typeof u.isPublic !== 'boolean') errors.push('isPublic: expected boolean');
+  if (visibility !== null && typeof u.isPublic === 'boolean' && u.isPublic !== (visibility === 'public')) errors.push('visibility/isPublic: conflicting scopes');
+  if (u.visibility === undefined && u.isPublic === true) visibility = 'public';
+  const isPublic = visibility === 'public';
 
   if (errors.length > 0) {
     return { isValid: false, errors };
   }
 
-  const profile: UserProfile = {
+  const profile: AlgorithmUserProfile = {
     id: (u.id as string).trim(),
     email: typeof u.email === 'string' ? u.email.trim() : '',
     name: (u.name as string).trim(),
@@ -216,8 +193,11 @@ export function validateUserProfile(dto: unknown): ValidationResult<UserProfile>
     githubUrl: typeof u.githubUrl === 'string' ? u.githubUrl.trim() : null,
     portfolioUrl: typeof u.portfolioUrl === 'string' ? u.portfolioUrl.trim() : null,
     isPublic,
-    createdAt: typeof u.createdAt === 'string' ? u.createdAt : new Date().toISOString(),
-    updatedAt: typeof u.updatedAt === 'string' ? u.updatedAt : new Date().toISOString(),
+    visibility,
+    otherInterest: typeof u.otherInterest === 'string' ? u.otherInterest.trim() : undefined,
+    otherRole: typeof u.otherRole === 'string' ? u.otherRole.trim() : undefined,
+    createdAt: typeof u.createdAt === 'string' ? u.createdAt : '',
+    updatedAt: typeof u.updatedAt === 'string' ? u.updatedAt : '',
   };
 
   return { isValid: true, errors: [], data: profile };
@@ -261,47 +241,37 @@ export function validateOpportunity(dto: unknown): ValidationResult<Opportunity>
   }
 
   // deadline ISO 파싱 확인
-  let deadline: string | null = null;
-  if (typeof o.deadline === 'string' && o.deadline.trim()) {
-    const t = new Date(o.deadline).getTime();
-    if (Number.isNaN(t)) {
-      errors.push('deadline이 유효한 날짜 포맷이 아닙니다.');
-    } else {
-      deadline = o.deadline;
-    }
-  }
-
-  // postedAt
-  let postedAt = '';
-  if (typeof o.postedAt === 'string' && o.postedAt.trim()) {
-    const t = new Date(o.postedAt).getTime();
-    if (Number.isNaN(t)) {
-      errors.push('postedAt이 유효한 날짜 포맷이 아닙니다.');
-    } else {
-      postedAt = o.postedAt;
-    }
-  } else {
-    postedAt = new Date().toISOString();
-  }
+  const postedAt = parseOpportunityTimestamp(o.postedAt);
+  if (o.postedAt == null || o.postedAt === '') errors.push('postedAt: unknown publication time');
+  else if (!postedAt) errors.push('postedAt: invalid timestamp');
+  const optionalDate = (field: 'deadline' | 'applicationStart'): string | null => {
+    if (o[field] == null) return null;
+    const parsed = parseOpportunityTimestamp(o[field]);
+    if (!parsed) errors.push(field + ': invalid timestamp; unknown must be null');
+    return parsed;
+  };
+  const deadline = optionalDate('deadline');
+  const applicationStart = optionalDate('applicationStart');
 
   if (errors.length > 0) {
     return { isValid: false, errors };
   }
 
   const opportunity: Opportunity = {
+    ...o,
     id: (o.id as string).trim(),
     title: (o.title as string).trim(),
     description: typeof o.description === 'string' ? o.description : '',
     category: (o.category as Opportunity['category']) ?? '공모전',
     tags: cleanedTags,
     organizer: typeof o.organizer === 'string' ? o.organizer : '컴퓨터학부',
-    postedAt,
-    applicationStart: typeof o.applicationStart === 'string' ? o.applicationStart : null,
+    postedAt: postedAt!,
+    applicationStart,
     deadline,
     sourceType: (o.sourceType as Opportunity['sourceType']) ?? 'knu_cse_official',
     status: o.status as Opportunity['status'],
-    collectedAt: typeof o.collectedAt === 'string' ? o.collectedAt : new Date().toISOString(),
-    updatedAt: typeof o.updatedAt === 'string' ? o.updatedAt : new Date().toISOString(),
+    collectedAt: typeof o.collectedAt === 'string' ? o.collectedAt : '',
+    updatedAt: typeof o.updatedAt === 'string' ? o.updatedAt : '',
   };
 
   return { isValid: true, errors: [], data: opportunity };

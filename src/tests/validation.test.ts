@@ -146,6 +146,7 @@ describe('알고리즘 입력 데이터 변환 및 검증 (validation)', () => {
       const dto = {
         id: 'opp-1',
         title: '대구 AI 경진대회',
+        postedAt: '2026-11-10T09:00:00+09:00',
         status: 'active',
         tags: ['AI', '해커톤'],
         deadline: '2026-12-31T18:00:00+09:00',

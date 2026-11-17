@@ -1,3 +1,4 @@
+import { filterValidAvailabilities } from './inputSafety';
 /**
  * BRIDGE — 주간 시간표 최적 회의 시간 추천 알고리즘 (Schedule Optimizer)
  * 
@@ -50,7 +51,7 @@ function buildMemberSlotGrid(availabilities: Availability[] | undefined): boolea
     return grid;
   }
 
-  for (const item of availabilities) {
+  for (const item of filterValidAvailabilities(availabilities)) {
     if (
       item &&
       item.isAvailable === true &&
@@ -95,7 +96,7 @@ export function calculateOptimalMeetingSlots(
   // 최소 요구 슬롯 수 계산 (30분 단위 올림)
   // 0 이하이거나 유효하지 않은 숫자가 입력된 경우 최소 1슬롯(30분)으로 안전 보정
   const safeDuration =
-    typeof minimumDurationMinutes === 'number' && !Number.isNaN(minimumDurationMinutes) && minimumDurationMinutes > 0
+    typeof minimumDurationMinutes === 'number' && Number.isFinite(minimumDurationMinutes) && minimumDurationMinutes > 0
       ? minimumDurationMinutes
       : 60;
   const requiredSlotCount = Math.max(1, Math.ceil(safeDuration / 30));
@@ -103,7 +104,7 @@ export function calculateOptimalMeetingSlots(
   // 팀원별 요일/슬롯 그리드 생성
   const memberGrids: Record<string, boolean[][]> = {};
   for (const memberId of allMemberIds) {
-    memberGrids[memberId] = buildMemberSlotGrid(teamMemberAvailabilities[memberId]);
+    memberGrids[memberId] = buildMemberSlotGrid(filterValidAvailabilities(teamMemberAvailabilities[memberId]).filter(item => item.userId === memberId));
   }
 
   // ===========================================================================

@@ -17,16 +17,26 @@ import { OpportunityMatchResult } from './opportunityRecommendation';
 import { MemberMatchResult } from './memberMatching';
 import { TeamBalanceAnalysisResult } from './teamAnalyzer';
 
+/** Invalid boundary data fails explicitly; never turn it into a success score. */
+function validateUiResult(targetId: unknown, score: unknown, matchedTags: unknown, reasons: unknown): MatchResult {
+  if (typeof targetId !== 'string' || !targetId.trim()) throw new TypeError('targetId must be a nonempty string');
+  if (typeof score !== 'number' || !Number.isFinite(score) || score < 0 || score > 100) {
+    throw new RangeError('score must be a finite number between 0 and 100');
+  }
+  const strings = (value: unknown, field: string): string[] => {
+    if (!Array.isArray(value) || Array.from(value).some(item => typeof item !== 'string' || !item.trim())) {
+      throw new TypeError(field + ' must be an array of nonempty strings');
+    }
+    return [...value];
+  };
+  return { targetId, score: Math.round(score), matchedTags: strings(matchedTags, 'matchedTags'), reasons: strings(reasons, 'reasons') };
+}
+
 /**
  * 단일 공모전 추천 결과를 프론트엔드용 MatchResult로 변환합니다.
  */
 export function adaptOpportunityMatchToUi(result: OpportunityMatchResult): MatchResult {
-  return {
-    targetId: result.opportunityId,
-    score: Math.min(100, Math.max(0, Math.round(result.score))),
-    matchedTags: [...result.matchedTags],
-    reasons: [...result.reasons],
-  };
+  return validateUiResult(result?.opportunityId, result?.score, result?.matchedTags, result?.reasons);
 }
 
 /**
@@ -45,12 +55,7 @@ export function adaptOpportunityMatchesToUi(results: OpportunityMatchResult[]): 
  * - matchedTechStacks -> matchedTags로 호환 매핑
  */
 export function adaptMemberMatchToUi(result: MemberMatchResult): MatchResult {
-  return {
-    targetId: result.userId,
-    score: Math.min(100, Math.max(0, Math.round(result.score))),
-    matchedTags: [...result.matchedTechStacks],
-    reasons: [...result.reasons],
-  };
+  return validateUiResult(result?.userId, result?.score, result?.matchedTechStacks, result?.reasons);
 }
 
 /**
@@ -73,10 +78,8 @@ export function adaptTeamCandidatesToUi(
     return [];
   }
 
-  return candidates.map((c) => ({
-    targetId: c.candidateProfile.id,
-    score: Math.min(100, Math.max(0, Math.round(c.fitScore))),
-    matchedTags: [],
-    reasons: [`${c.complementRole} 역할을 보완할 수 있는 적합 인재입니다.`],
-  }));
+  return candidates.map((c) => {
+    if (typeof c?.complementRole !== 'string' || !c.complementRole.trim()) throw new TypeError('complementRole must be a nonempty string');
+    return validateUiResult(c?.candidateProfile?.id, c?.fitScore, [], [`${c.complementRole} 역할을 보완할 수 있는 적합 인재입니다.`]);
+  });
 }
