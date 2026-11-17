@@ -31,7 +31,7 @@ function ProfileEditor({ profile }: { profile: UserProfile }) {
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (submitting.current || saving || !dirty) return;
-    const issues = validateProfileDraft(draft, original);
+    const issues = validateProfileDraft(draft);
     if (issues.length) { setErrors(issues); return; }
     submitting.current = true;
     setNotice(''); setErrors([]);
@@ -57,7 +57,7 @@ function ProfileEditor({ profile }: { profile: UserProfile }) {
       <Section title="학부 및 기본 정보">
         <div className="grid min-w-0 gap-5 sm:grid-cols-2">
           <Field label="이름"><input className={fieldClass} value={draft.name} onChange={event => change('name', event.target.value)} required /></Field>
-          <Field label="닉네임"><input aria-label="닉네임" className={fieldClass} value={draft.nickname} onChange={event => change('nickname', event.target.value)} placeholder="미입력 시 이름으로 표시" aria-describedby="nickname-policy" aria-invalid={draft.nickname !== original.nickname && !draft.nickname.trim() || undefined} /><span id="nickname-policy" className="text-xs font-normal text-[#64748B]">닉네임은 선택 항목입니다. 회원 분기 정책 보완 전까지 기존 닉네임 삭제는 잠시 제한되며, 다른 닉네임으로 변경할 수 있습니다.</span></Field>
+          <Field label="닉네임"><input aria-label="닉네임" className={fieldClass} value={draft.nickname} onChange={event => change('nickname', event.target.value)} placeholder="미입력 시 이름으로 표시" /></Field>
           <Field label="학교 이메일"><input className={fieldClass} value={profile.email} readOnly /></Field>
           <Field label="학년"><select className={fieldClass} value={draft.grade} onChange={event => change('grade', event.target.value as ProfileDraft['grade'])}>{GRADE_OPTIONS.map(value => <option key={value}>{value}</option>)}</select></Field>
           <Field label="소속 학부"><input className={fieldClass} value={draft.department ?? ''} readOnly placeholder="미등록" /></Field>

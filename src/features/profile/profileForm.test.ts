@@ -2,6 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { buildProfilePatch, toProfileDraft, validateProfileDraft } from './profileForm';
 import { profileFixture } from './profileFixture';
 describe('프로필 편집 경계', () => {
+  it('이미 빈 닉네임의 공백 입력은 불필요한 변경으로 전송하지 않는다', () => {
+    const original = toProfileDraft(profileFixture({ nickname: '' }));
+    expect(buildProfilePatch(original, { ...original, nickname: '   ' })).toEqual({});
+    expect(buildProfilePatch(original, { ...original, nickname: '   ', bio: '새 소개' })).toEqual({ bio: '새 소개' });
+    const existingWhitespace = toProfileDraft(profileFixture({ nickname: '   ' }));
+    expect(buildProfilePatch(existingWhitespace, { ...existingWhitespace, bio: '새 소개' })).toEqual({ bio: '새 소개' });
+  });
   it('원본을 복제하고 변경한 필드만 전송한다', () => {
     const row = profileFixture(); const original = toProfileDraft(row); const draft = toProfileDraft(row);
     draft.bio = '새 소개';

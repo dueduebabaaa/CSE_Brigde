@@ -15,14 +15,17 @@ const equal = (left: unknown, right: unknown): boolean => {
 };
 export function buildProfilePatch(original: ProfileDraft, draft: ProfileDraft): ProfileUpdate {
   const patch: Record<string, unknown> = {};
-  for (const key of EDITABLE_FIELDS) if (!equal(original[key], draft[key])) patch[key] = draft[key];
+  for (const key of EDITABLE_FIELDS) {
+    if (equal(original[key], draft[key])) continue;
+    // The service accepts strings, including ''. Normalize whitespace-only nicknames.
+    const value = key === 'nickname' && !draft.nickname.trim() ? '' : draft[key];
+    if (!equal(original[key], value)) patch[key] = value;
+  }
   if (Object.prototype.hasOwnProperty.call(patch, 'visibility')) patch.is_public = draft.visibility === 'public';
   return patch as ProfileUpdate;
 }
-export function validateProfileDraft(draft: ProfileDraft, original?: ProfileDraft): string[] {
+export function validateProfileDraft(draft: ProfileDraft): string[] {
   const errors: string[] = [];
-  // Temporary UI safeguard only: an existing empty nickname stays optional.
-  if (original && draft.nickname !== original.nickname && !draft.nickname.trim()) errors.push('닉네임 삭제는 회원 분기 정책 보완 전까지 잠시 제한됩니다. 기존 닉네임을 유지하거나 새 닉네임을 입력해 주세요.');
   if (!draft.name.trim()) errors.push('이름을 입력해 주세요.');
   if (!GRADE_OPTIONS.includes(draft.grade)) errors.push('학년을 선택해 주세요.');
   if (!MAJOR_TRACKS.includes(draft.track)) errors.push('세부전공을 선택해 주세요.');

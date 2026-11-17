@@ -22,15 +22,21 @@ beforeEach(() => { mocks.auth = { user: { id: 'user-a' }, loading: false }; mock
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe('마이페이지 실제 서비스 연동', () => {
-  it.each(['', '   '])('기존 닉네임을 비우거나 공백(%j)으로 바꾸면 저장을 차단한다', async nickname => {
-    render(<TestApp />); await loaded(); edit('닉네임', nickname); edit('한 줄 자기소개', '보존할 초안'); save();
-    expect(screen.getByRole('alert').textContent).toContain('닉네임 삭제는 회원 분기 정책 보완 전까지');
-    expect(mocks.update).not.toHaveBeenCalled();
+  it.each(['', '   '])('닉네임 삭제·공백(%j)을 빈 문자열로 저장하고 홈에서 이름을 표시한다', async nickname => {
+    render(<TestApp />); await loaded(); edit('닉네임', nickname); save();
+    await screen.findByText('프로필 변경 사항을 저장했습니다.');
+    expect(mocks.update).toHaveBeenCalledWith({ nickname: '' });
+    expect(mocks.update).toHaveBeenCalledTimes(1);
     expect((screen.getByLabelText('닉네임') as HTMLInputElement).required).toBe(false);
-    expect((screen.getByLabelText('한 줄 자기소개') as HTMLInputElement).value).toBe('보존할 초안');
-    expect(screen.getByText(/닉네임은 선택 항목입니다/)).toBeTruthy();
-    edit('닉네임', '별칭'); save(); await screen.findByText('프로필 변경 사항을 저장했습니다.');
-    expect(mocks.update).toHaveBeenCalledWith({ bio: '보존할 초안' });
+    expect((screen.getByLabelText('닉네임') as HTMLInputElement).value).toBe('');
+    expect(screen.queryByText(/삭제는 잠시 제한/)).toBeNull();
+    fireEvent.click(screen.getByRole('link', { name: '홈 화면' }));
+    await screen.findByText('테스트 학생님, 반가워요.');
+  });
+  it.each(['', '   '])('닉네임이 선택값이어도 이름(%j)은 비어 있으면 저장하지 않는다', async name => {
+    render(<TestApp />); await loaded(); edit('이름', name); edit('닉네임', ''); save();
+    expect(screen.getByRole('alert').textContent).toContain('이름을 입력해 주세요.');
+    expect(mocks.update).not.toHaveBeenCalled();
   });
   it('기존 닉네임이 없어도 다른 정보 수정과 이름 대체 표시를 허용한다', async () => {
     mocks.fetch.mockResolvedValue(profileFixture({ nickname: '' }));
