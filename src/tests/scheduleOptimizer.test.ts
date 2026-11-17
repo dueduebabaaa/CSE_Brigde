@@ -339,5 +339,25 @@ describe('주간 시간표 최적 회의 시간 추천 알고리즘 (scheduleOpt
       const res2 = calculateOptimalMeetingSlots(input, 60);
       expect(res1).toEqual(res2);
     });
+
+    it('21) [오류 수정 검증] dayOfWeek가 1.5 같은 소수이거나 slot이 20.3 같은 소수일 때 런타임 오류 없이 무시되어야 한다', () => {
+      const input = {
+        userA: [
+          ...makeSlots('userA', 1, 20, 21),
+          // 소수 요일 및 소수 슬롯 (런타임 TypeError 발생 유발 케이스)
+          { id: 'err-1', userId: 'userA', dayOfWeek: 1.5 as any, slot: 20, isAvailable: true, updatedAt: '' },
+          { id: 'err-2', userId: 'userA', dayOfWeek: 1, slot: 20.3 as any, isAvailable: true, updatedAt: '' },
+        ],
+        userB: makeSlots('userB', 1, 20, 21),
+      };
+
+      // 런타임 예외 없이 정상적으로 1(월요일) 20~21 슬롯이 계산되어야 함
+      expect(() => calculateOptimalMeetingSlots(input as unknown as Record<string, Availability[]>, 60)).not.toThrow();
+      const results = calculateOptimalMeetingSlots(input as unknown as Record<string, Availability[]>, 60);
+      expect(results).toHaveLength(1);
+      expect(results[0].dayOfWeek).toBe(1);
+      expect(results[0].startSlot).toBe(20);
+      expect(results[0].endSlot).toBe(21);
+    });
   });
 });

@@ -243,5 +243,24 @@ describe('팀 빌더 역량 균형도 분석 알고리즘 (teamAnalyzer)', () =>
       expect(candidatesOriginal).toEqual(mockUsers);
       expect(rolesOriginal).toEqual(['Frontend', 'Backend']);
     });
+
+    it('16) [오류 수정 검증] PM/기획, 마케팅 등 레이더 6축 밖의 필수 역할이 지정되었을 때, 거짓 충족 안내가 발생하지 않고 부족 경고가 안내되어야 한다', () => {
+      // 프론트엔드 개발자 1명만 있는 팀
+      const team = [user01]; // desiredRoles: ['Frontend Developer', 'UI/UX Lead']
+      // 필수 역할로 Frontend와 PM/기획을 요구
+      const requiredRoles = ['Frontend', 'PM/기획'];
+
+      const result = analyzeTeamBalanceForRoles(team, mockUsers, requiredRoles);
+
+      // Frontend는 충족, PM/기획은 부족
+      expect(result.coveredRoles).toContain('Frontend');
+      expect(result.missingRoles).toContain('PM/기획');
+      expect(result.isBalanced).toBe(false);
+
+      // "모두 충족되었습니다" 거짓 경고가 절대 없어야 함
+      expect(result.warnings.some((w) => w.includes('모두 충족되었습니다'))).toBe(false);
+      // "PM/기획 담당자가 부족합니다" 경고가 정상 출력되어야 함
+      expect(result.warnings.some((w) => w.includes('PM/서비스 기획') || w.includes('PM/기획'))).toBe(true);
+    });
   });
 });

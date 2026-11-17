@@ -253,6 +253,34 @@ describe('공모전 맞춤 추천 알고리즘 (recommendOpportunities)', () => 
       expect(results).toHaveLength(1);
       expect(results[0].opportunityId).toBe('opp-null-deadline');
     });
+
+    it('[오류 수정 검증] postedAt이 현재 기준 시각보다 미래인 게시 전 공고는 추천에서 제외되어야 한다', () => {
+      const futurePostedContest: Opportunity = {
+        ...mockOpportunities[0],
+        id: 'opp-future-posted',
+        status: 'active',
+        postedAt: '2026-11-20T00:00:00+09:00', // referenceDate (11-15)보다 미래
+        deadline: '2026-11-30T18:00:00+09:00',
+      };
+
+      const results = recommendOpportunities(student, [futurePostedContest], referenceDate);
+      expect(results).toHaveLength(0);
+    });
+
+    it('게시일이 지났고 접수 시작(applicationStart)이 미래인 모집 예정 공고는 추천 대상에 포함되어야 한다 (DATA_CONTRACT 8.3절)', () => {
+      const upcomingContest: Opportunity = {
+        ...mockOpportunities[0],
+        id: 'opp-upcoming-apply',
+        status: 'active',
+        postedAt: '2026-11-10T00:00:00+09:00', // 이미 게시됨
+        applicationStart: '2026-11-20T09:00:00+09:00', // 접수 시작은 미래
+        deadline: '2026-11-30T18:00:00+09:00',
+      };
+
+      const results = recommendOpportunities(student, [upcomingContest], referenceDate);
+      expect(results).toHaveLength(1);
+      expect(results[0].opportunityId).toBe('opp-upcoming-apply');
+    });
   });
 
   // ---------------------------------------------------------------------------

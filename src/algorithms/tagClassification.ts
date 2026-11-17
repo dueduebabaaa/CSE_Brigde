@@ -7,6 +7,29 @@
 
 export type TagCategory = 'field' | 'tech' | 'general';
 
+/**
+ * DATA_CONTRACT.md 3.2절: 공통 합의된 관심 분야 표준 15종
+ */
+export const STANDARD_INTEREST_OPTIONS = [
+  '웹 개발',
+  '앱 개발',
+  '인공지능',
+  '데이터 분석',
+  '정보보안',
+  '게임 개발',
+  '임베디드 및 IoT',
+  '클라우드',
+  'UI/UX 디자인',
+  '서비스 기획',
+  '마케팅',
+  '창업',
+  '알고리즘',
+  '오픈소스',
+  '기타',
+] as const;
+
+export type StandardInterest = (typeof STANDARD_INTEREST_OPTIONS)[number];
+
 export interface ClassifiedTags {
   fields: string[];       // 관심 분야 태그 (점수 계산 대상)
   techs: string[];        // 기술 스택 태그 (점수 계산 대상)
@@ -216,6 +239,113 @@ export const SYNONYM_MAP: Record<string, string> = {
   'burp suite': 'Burp Suite',
   'wireshark': 'Wireshark',
   'ai sdk': 'AI SDK',
+
+  // 관심 분야 15종 보완 동의어
+  '임베디드': '임베디드 및 IoT',
+  '임베디드 및 iot': '임베디드 및 IoT',
+  '임베디드및iot': '임베디드 및 IoT',
+  'iot': '임베디드 및 IoT',
+  'embedded': '임베디드 및 IoT',
+  '서비스 기획': '서비스 기획',
+  '서비스기획': '서비스 기획',
+  '기획': '서비스 기획',
+  '마케팅': '마케팅',
+  'marketing': '마케팅',
+  '홍보': '마케팅',
+  '창업': '창업',
+  'startup': '창업',
+  '창업/스타트업': '창업',
+  '앱개발': '앱 개발',
+  'ui/ux디자인': 'UI/UX 디자인',
+};
+
+/**
+ * 관심 분야 15종 전용 정규화 매핑 사전 (소문자/공백 정리 키 -> A의 15개 표준 문자열)
+ */
+export const INTEREST_SYNONYM_MAP: Record<string, StandardInterest> = {
+  '웹 개발': '웹 개발',
+  '웹개발': '웹 개발',
+  '웹': '웹 개발',
+  '웹 서비스': '웹 개발',
+  '웹서비스': '웹 개발',
+  'web': '웹 개발',
+  'web development': '웹 개발',
+  'web dev': '웹 개발',
+
+  '앱 개발': '앱 개발',
+  '앱개발': '앱 개발',
+  '모바일 앱': '앱 개발',
+  '모바일': '앱 개발',
+  'mobile': '앱 개발',
+  'ios': '앱 개발',
+  'android': '앱 개발',
+
+  '인공지능': '인공지능',
+  'ai': '인공지능',
+  'artificial intelligence': '인공지능',
+  '머신러닝': '인공지능',
+  '딥러닝': '인공지능',
+  '생성형 ai': '인공지능',
+  '생성형ai': '인공지능',
+  'llm': '인공지능',
+
+  '데이터 분석': '데이터 분석',
+  '데이터분석': '데이터 분석',
+  '빅데이터': '데이터 분석',
+  'bigdata': '데이터 분석',
+  'big data': '데이터 분석',
+  'data analysis': '데이터 분석',
+  '데이터사이언스': '데이터 분석',
+
+  '정보보안': '정보보안',
+  '보안': '정보보안',
+  'security': '정보보안',
+  '사이버보안': '정보보안',
+
+  '게임 개발': '게임 개발',
+  '게임개발': '게임 개발',
+  '게임': '게임 개발',
+  'game': '게임 개발',
+
+  '임베디드 및 iot': '임베디드 및 IoT',
+  '임베디드및iot': '임베디드 및 IoT',
+  '임베디드': '임베디드 및 IoT',
+  'iot': '임베디드 및 IoT',
+  'embedded': '임베디드 및 IoT',
+
+  '클라우드': '클라우드',
+  'cloud': '클라우드',
+  '인프라': '클라우드',
+
+  'ui/ux 디자인': 'UI/UX 디자인',
+  'ui/ux디자인': 'UI/UX 디자인',
+  'ui/ux': 'UI/UX 디자인',
+  'uiux': 'UI/UX 디자인',
+  '디자인': 'UI/UX 디자인',
+
+  '서비스 기획': '서비스 기획',
+  '서비스기획': '서비스 기획',
+  '기획': '서비스 기획',
+  'pm': '서비스 기획',
+
+  '마케팅': '마케팅',
+  'marketing': '마케팅',
+  '홍보': '마케팅',
+
+  '창업': '창업',
+  'startup': '창업',
+
+  '알고리즘': '알고리즘',
+  'algorithm': '알고리즘',
+  'ps': '알고리즘',
+
+  '오픈소스': '오픈소스',
+  'open source': '오픈소스',
+  '오픈소스 sw': '오픈소스',
+
+  '기타': '기타',
+  'other': '기타',
+  'etc': '기타',
 };
 
 /**
@@ -224,6 +354,7 @@ export const SYNONYM_MAP: Record<string, string> = {
 export const KNOWN_FIELD_CANONICALS = new Set<string>([
   '웹 개발',
   'AI',
+  '인공지능',
   '머신러닝',
   '딥러닝',
   '자연어 처리',
@@ -236,15 +367,22 @@ export const KNOWN_FIELD_CANONICALS = new Set<string>([
   '클라우드',
   'DevOps',
   '모바일 앱',
+  '앱 개발',
   '오픈소스',
   'UI/UX',
+  'UI/UX 디자인',
   '게임 개발',
+  '임베디드 및 IoT',
+  '서비스 기획',
+  '마케팅',
+  '창업',
   '핀테크',
   '금융데이터',
   '공공데이터',
   '알고리즘',
   'SW융합',
   '웹표준',
+  '기타',
 ].map(s => s.toLowerCase()));
 
 /**
@@ -346,11 +484,11 @@ export const KNOWN_GENERAL_TAGS = new Set<string>([
 ]);
 
 /**
- * 문자열 태그를 공백 정리 및 소문자화하여 기본 정규화합니다.
+ * 문자열 태그를 유니코드 정규화(NFKC), 공백 정리 및 소문자화하여 기본 정규화합니다.
  */
 export function normalizeTag(tag: string): string {
   if (!tag) return '';
-  return tag.trim().replace(/\s+/g, ' ').toLowerCase();
+  return tag.normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
 /**
@@ -361,6 +499,34 @@ export function getCanonicalTag(tag: string): string {
   const normalized = normalizeTag(tag);
   if (!normalized) return '';
   return SYNONYM_MAP[normalized] ?? tag.trim();
+}
+
+/**
+ * 관심 분야 문자열을 A의 15종 표준 명칭으로 정규화합니다.
+ * 
+ * [원칙 - DATA_CONTRACT.md 3.2, 3.4 준수]
+ * 1. 영문·약어·동의어(ai -> 인공지능, mobile -> 앱 개발 등)는 15종 표준으로 통일합니다.
+ * 2. 사용자가 '기타'를 통해 직접 입력한 자유 문자열은 임의로 다른 분야로 바꾸거나 삭제하지 않고,
+ *    공백만 정리하여 원본 문자열을 그대로 보존합니다.
+ */
+export function normalizeInterest(interest: string): string {
+  if (!interest) return '';
+  const trimmed = interest.normalize('NFKC').trim();
+  if (!trimmed) return '';
+
+  const key = trimmed.replace(/\s+/g, ' ').toLowerCase();
+  const matched = INTEREST_SYNONYM_MAP[key];
+  if (matched) {
+    return matched;
+  }
+
+  // 매핑되지 않는 직접 입력값(예: '블록체인', '양자컴퓨팅')은 원본 보존
+  return trimmed;
+}
+
+/** Compare legacy field aliases with the new standard interest labels. */
+export function getCanonicalFieldTag(tag: string): string {
+  return getCanonicalTag(normalizeInterest(getCanonicalTag(tag)));
 }
 
 /**
