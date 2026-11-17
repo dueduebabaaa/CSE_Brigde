@@ -16,7 +16,7 @@ vi.mock('../lib/supabase', () => ({
   },
 }));
 
-import { mapProfileRow, profileVisibilityFromRow, updateMyProfile } from './profileService';
+import { isProfileComplete, mapProfileRow, profileVisibilityFromRow, updateMyProfile } from './profileService';
 
 const baseProfile = {
   id: 'user-1',
@@ -76,6 +76,16 @@ describe('프로필 행 변환', () => {
 
   it('잘못된 저장값을 조용히 버리지 않고 조회 오류로 처리한다', () => {
     expect(() => mapProfileRow({ ...baseProfile, tech_proficiency: { React: '초급' } })).toThrow();
+  });
+});
+
+describe('프로필 완료 판정', () => {
+  it('nickname이 빈 문자열이어도 프로필을 완료로 판정한다', () => {
+    expect(isProfileComplete(mapProfileRow({ ...baseProfile, nickname: '' }))).toBe(true);
+  });
+
+  it('name이 빈 문자열이면 프로필을 미완료로 판정한다', () => {
+    expect(isProfileComplete(mapProfileRow({ ...baseProfile, name: '' }))).toBe(false);
   });
 });
 

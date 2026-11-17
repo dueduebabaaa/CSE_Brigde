@@ -300,7 +300,7 @@ export const updateMyProfile = async (updates: ProfileUpdate): Promise<UserProfi
 };
 
 export const isProfileComplete = (profile: UserProfile | null) => Boolean(
-  profile && profile.name?.trim() && profile.nickname?.trim()
+  profile && profile.name?.trim()
   && profile.grade && profile.track && profile.visibility
   && profile.interests?.length && profile.desired_roles?.length
   && Array.isArray(profile.tech_stacks)
