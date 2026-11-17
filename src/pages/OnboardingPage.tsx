@@ -29,6 +29,7 @@ import { TechnologyPicker } from '../components/TechnologyPicker';
 import { useAuth } from '../hooks/useAuth';
 import { fetchMyProfile, saveMyProfile } from '../services/profileService';
 import type { ProfileUpsert } from '../services/profileService';
+import type { UserProfile } from '../services/profileService';
 // ─── 표준 태그 및 옵션 상수 정의 (docs/PROFILE_SPEC.md 준수) ───
 
 const INTEREST_OPTIONS = [
@@ -103,7 +104,7 @@ interface OnboardingFormState {
   // Step 3
   hasNoTech: boolean;
   techStacks: string[];
-  techProficiencies: Record<string, Proficiency>;
+  techProficiencies: Record<string, Proficiency | null>;
 
   // Step 4
   wantedTechStacks: string[];
@@ -141,6 +142,7 @@ export const OnboardingPage: React.FC = () => {
   const [showCompleteModal, setShowCompleteModal] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [saveError, setSaveError] = useState<string>('');
+  const [profileLoadState, setProfileLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
 
   // 초기 폼 상태 (신규 사용자 기본 미선택)
   const [form, setForm] = useState<OnboardingFormState>({
@@ -174,18 +176,28 @@ export const OnboardingPage: React.FC = () => {
 
   // 로그인한 사용자의 기존 프로필 불러오기
   useEffect(() => {
-    if (authLoading || !user) return;
+    if (authLoading) return;
+    if (!user) {
+      setProfileLoadState('error');
+      return;
+    }
 
     let cancelled = false;
+    setProfileLoadState('loading');
 
     const loadProfile = async () => {
       try {
         const profile = await fetchMyProfile(user.id);
 
-        if (!profile || cancelled) return;
+        if (cancelled) return;
+        if (!profile) {
+          setProfileLoadState('ready');
+          return;
+        }
+        const existing = profile as UserProfile;
 
-        const interests = (profile.interests ?? []) as string[];
-        const desiredRoles = (profile.desired_roles ?? []) as string[];
+        const interests = existing.interests ?? [];
+        const desiredRoles = existing.desired_roles ?? [];
 
         const otherInterest = interests.find(
           (item) => !INTEREST_OPTIONS.includes(item)
@@ -203,34 +215,45 @@ export const OnboardingPage: React.FC = () => {
           item === otherRole && otherRole ? '기타' : item
         );
 
-        const visibility = profile.visibility === 'team_only'
-          ? 'team_only'
-          : profile.visibility === 'private'
-            ? 'private'
-            : 'public';
+        const visibility = existing.visibility === 'public'
+          || existing.visibility === 'team_only'
+          || existing.visibility === 'private'
+          ? existing.visibility
+          : existing.is_public === true
+            ? 'public'
+            : '';
 
         setForm((prev) => ({
           ...prev,
-          name: profile.name ?? prev.name,
-          nickname: profile.nickname ?? '',
-          grade: profile.grade ?? '',
-          track: profile.track ?? '',
+          name: existing.name ?? prev.name,
+          nickname: existing.nickname ?? '',
+          department: existing.department ?? prev.department,
+          grade: existing.grade ?? '',
+          track: existing.track ?? '',
           interests: normalizedInterests,
           otherInterest,
           desiredRoles: normalizedRoles,
           otherRole,
-          techStacks: profile.tech_stacks ?? [],
-          hasNoTech: (profile.tech_stacks ?? []).length === 0,
-          wantedTechStacks: profile.wanted_tech_stacks ?? [],
-          bio: profile.bio ?? '',
-          longBio: profile.long_bio ?? '',
-          githubUrl: profile.github_url ?? '',
-          portfolioUrl: profile.portfolio_url ?? '',
+          techStacks: existing.tech_stacks ?? [],
+          techProficiencies: existing.tech_proficiency ?? {},
+          hasNoTech: (existing.tech_stacks ?? []).length === 0,
+          wantedTechStacks: existing.wanted_tech_stacks ?? [],
+          activityTypes: existing.activity_types ?? [],
+          activityGoals: existing.activity_goals ?? [],
+          meetingWay: existing.activity_mode ?? '',
+          activityDuration: existing.activity_duration ?? '',
+          participationStatus: existing.availability_status ?? '',
+          bio: existing.bio ?? '',
+          longBio: existing.long_bio ?? '',
+          githubUrl: existing.github_url ?? '',
+          portfolioUrl: existing.portfolio_url ?? '',
           visibility,
         }));
+        setProfileLoadState('ready');
       } catch (error) {
         console.error('기존 프로필 불러오기 실패:', error);
         if (!cancelled) {
+          setProfileLoadState('error');
           setStepError('기존 프로필을 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.');
         }
       }
@@ -392,6 +415,13 @@ export const OnboardingPage: React.FC = () => {
 
     setSaveError('');
 
+    if (profileLoadState !== 'ready') {
+      setSaveError(profileLoadState === 'loading'
+        ? '기존 프로필을 불러오는 중입니다.'
+        : '기존 프로필을 확인하지 못했습니다. 페이지를 새로고침한 뒤 다시 시도해 주세요.');
+      return;
+    }
+
     if (authLoading || !user) {
       setSaveError('로그인 정보를 확인할 수 없습니다. 다시 로그인해 주세요.');
       return;
@@ -426,16 +456,25 @@ export const OnboardingPage: React.FC = () => {
       nickname: form.nickname.trim() || form.name.trim(),
       grade: form.grade as ProfileUpsert['grade'],
       track: form.track as ProfileUpsert['track'],
+      department: form.department.trim(),
       bio: form.bio.trim(),
       long_bio: form.longBio.trim(),
       interests: form.interests
         .map((item) => item === '기타' ? form.otherInterest.trim() : item)
         .filter(Boolean),
       tech_stacks: form.hasNoTech ? [] : form.techStacks,
+      tech_proficiency: form.hasNoTech ? {} : Object.fromEntries(
+        Object.entries(form.techProficiencies).filter(([technology]) => form.techStacks.includes(technology))
+      ),
       wanted_tech_stacks: form.wantedTechStacks,
       desired_roles: form.desiredRoles
         .map((item) => item === '기타' ? form.otherRole.trim() : item)
         .filter(Boolean),
+      activity_types: form.activityTypes,
+      activity_goals: form.activityGoals,
+      activity_mode: form.meetingWay ? form.meetingWay as ProfileUpsert['activity_mode'] : null,
+      activity_duration: form.activityDuration ? form.activityDuration as ProfileUpsert['activity_duration'] : null,
+      availability_status: form.participationStatus ? form.participationStatus as ProfileUpsert['availability_status'] : null,
       github_url: form.githubUrl.trim() || null,
       portfolio_url: form.portfolioUrl.trim() || null,
       visibility,
@@ -446,6 +485,8 @@ export const OnboardingPage: React.FC = () => {
     try {
       setIsSaving(true);
       await saveMyProfile(profileData);
+
+      window.dispatchEvent(new Event('bridge-profile-updated'));
 
       if (import.meta.env.DEV) {
         localStorage.setItem('bridge_auth_preview', 'true');
@@ -507,6 +548,11 @@ export const OnboardingPage: React.FC = () => {
           본문 온보딩 컨테이너
       ───────────────────────────────────────────────────────── */}
       <main className="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 py-8 sm:py-12 flex flex-col justify-between">
+        <fieldset
+          disabled={authLoading || profileLoadState !== 'ready'}
+          className="w-full min-w-0 border-0 p-0 m-0 flex-1 flex flex-col justify-between"
+          aria-busy={profileLoadState === 'loading'}
+        >
         <div className="space-y-8">
           {/* 단계 표시 및 타이틀 */}
           <div className="space-y-1.5">
@@ -539,6 +585,10 @@ export const OnboardingPage: React.FC = () => {
               <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
               <span>{stepError}</span>
             </div>
+          )}
+
+          {profileLoadState === 'loading' && (
+            <p role="status" className="text-xs text-[#94A3B8]">기존 프로필을 불러오는 중입니다...</p>
           )}
 
           {/* ─────────────────────────────────────────────────────
@@ -1163,6 +1213,7 @@ export const OnboardingPage: React.FC = () => {
             )}
           </div>
         </div>
+        </fieldset>
       </main>
 
       {/* ─────────────────────────────────────────────────────
@@ -1210,7 +1261,7 @@ export const OnboardingPage: React.FC = () => {
             <button
               type="button"
               onClick={handleFinishOnboarding}
-              disabled={isSaving}
+              disabled={isSaving || authLoading || profileLoadState !== 'ready'}
               className="w-full py-3 rounded-xl bg-[#C6FF33] hover:bg-[#B8F224] text-black font-extrabold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Compass className="w-4 h-4" />

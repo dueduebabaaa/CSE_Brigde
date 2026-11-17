@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   Mail,
   ArrowRight,
@@ -9,9 +10,17 @@ import {
 import { supabase } from '../lib/supabase';
 
 export const LoginPage: React.FC = () => {
+  const location = useLocation();
   const [emailPrefix, setEmailPrefix] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    const state = location.state;
+    if (typeof state === 'object' && state !== null && 'authStatus' in state && state.authStatus === 'school_failed') {
+      setErrorMessage('경북대학교 학교 이메일 인증을 확인하지 못해 로그아웃했습니다. @knu.ac.kr 계정으로 다시 로그인해 주세요.');
+    }
+  }, [location.state]);
 
   // 실제 Google OAuth 로그인 요청
   const handleGoogleLogin = async (e: React.FormEvent) => {

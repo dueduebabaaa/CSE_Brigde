@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   NavLink,
   Outlet,
@@ -10,6 +10,7 @@ import {
 
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
+import { fetchMyProfile, isProfileComplete } from '../services/profileService';
 
 import {
   LayoutDashboard,
@@ -202,11 +203,42 @@ const Sidebar: React.FC<SidebarProps> = ({
 
 export const AppLayout: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [profileStatus, setProfileStatus] = useState<'loading' | 'complete' | 'incomplete' | 'error' | 'skip'>('loading');
 
   const location = useLocation();
   const navigate = useNavigate();
 
-  const { user, loading, isLoggedIn } = useAuth();
+  const { user, loading, isLoggedIn, authStatus } = useAuth();
+  const isLoginPage = location.pathname === '/login';
+  const isOnboardingPage = location.pathname === '/onboarding';
+
+  useEffect(() => {
+    if (loading) return;
+    if (!user || isLoginPage) {
+      setProfileStatus('skip');
+      return;
+    }
+
+    let active = true;
+    const refreshProfileStatus = () => {
+      setProfileStatus('loading');
+      void fetchMyProfile(user.id)
+        .then((profile) => {
+          if (active) setProfileStatus(isProfileComplete(profile) ? 'complete' : 'incomplete');
+        })
+        .catch((error) => {
+          console.error('프로필 상태 확인 실패:', error);
+          if (active) setProfileStatus('error');
+        });
+    };
+
+    refreshProfileStatus();
+    window.addEventListener('bridge-profile-updated', refreshProfileStatus);
+    return () => {
+      active = false;
+      window.removeEventListener('bridge-profile-updated', refreshProfileStatus);
+    };
+  }, [user, loading, isLoginPage]);
 
   // Google 계정에서 사용자 정보 가져오기
   const userEmail = user?.email ?? '';
@@ -247,8 +279,6 @@ export const AppLayout: React.FC = () => {
     }
   };
 
-  const isLoginPage = location.pathname === '/login';
-
   // 인증 상태 확인 중
   if (loading) {
     return (
@@ -262,7 +292,7 @@ export const AppLayout: React.FC = () => {
 
   // 로그인하지 않은 사용자의 내부 페이지 접근 차단
   if (!isLoggedIn && !isLoginPage) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" replace state={{ authStatus }} />;
   }
 
   // 이미 로그인한 사용자가 로그인 화면에 접근하는 경우
@@ -274,6 +304,34 @@ export const AppLayout: React.FC = () => {
   if (isLoginPage) {
     return <Outlet />;
   }
+
+  if (location.pathname.startsWith('/admin') && user?.app_metadata?.role !== 'admin') {
+    return <Navigate to="/" replace />;
+  }
+
+  if (isOnboardingPage) {
+    if (profileStatus === 'complete') return <Navigate to="/" replace />;
+    return <Outlet />;
+  }
+
+  if (profileStatus === 'loading' || profileStatus === 'skip') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
+        <p className="text-sm text-[#64748B]">프로필 상태를 확인하는 중입니다...</p>
+      </div>
+    );
+  }
+
+  if (profileStatus === 'error') {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-[#F8FAFC]">
+        <p className="text-sm text-[#64748B]">프로필 상태를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.</p>
+        <button className="text-sm font-semibold text-[#7D39EB]" onClick={() => window.location.reload()}>다시 시도</button>
+      </div>
+    );
+  }
+
+  if (profileStatus === 'incomplete') return <Navigate to="/onboarding" replace />;
 
   // 메인 레이아웃
   return (
