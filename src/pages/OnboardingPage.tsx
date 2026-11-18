@@ -135,8 +135,9 @@ export const OnboardingPage: React.FC = () => {
 
   const googleAvatarUrl =
     typeof user?.user_metadata?.avatar_url === 'string'
-      ? user.user_metadata.avatar_url
+      ? user.user_metadata.avatar_url.trim()
       : null;
+  const [failedAvatarUrl, setFailedAvatarUrl] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [stepError, setStepError] = useState<string>('');
   const [showCompleteModal, setShowCompleteModal] = useState<boolean>(false);
@@ -598,18 +599,23 @@ export const OnboardingPage: React.FC = () => {
             <div className="bg-[#0B0C10] border border-[#1E1E2A] rounded-2xl p-6 sm:p-8 space-y-6">
               {/* 프로필 아바타 & 색상 */}
               <div className="flex flex-col sm:flex-row sm:items-center gap-4 pb-6 border-b border-[#1E1E2A]">
-                {googleAvatarUrl ? (
+                {googleAvatarUrl && failedAvatarUrl !== googleAvatarUrl ? (
                   <img
                     src={googleAvatarUrl}
-                    alt={googleName || 'Google 프로필 사진'}
+                    alt=""
+                    role="img"
+                    aria-label={googleName || 'Google 프로필 사진'}
+                    referrerPolicy="no-referrer"
+                    onError={event => { event.currentTarget.style.visibility = 'hidden'; setFailedAvatarUrl(googleAvatarUrl); }}
                     className="w-16 h-16 rounded-2xl object-cover shrink-0"
                   />
                 ) : (
                   <div
+                    aria-label="기본 프로필 아바타"
                     className={`w-16 h-16 rounded-2xl ${form.avatarColor} flex items-center justify-center text-white font-black text-2xl shadow-sm shrink-0`}
                   >
-                    {form.name.trim() ? (
-                      form.name.trim().charAt(0)
+                    {(form.name.trim() || googleName.trim()) ? (
+                      (form.name.trim() || googleName.trim()).charAt(0)
                     ) : (
                       <User className="w-7 h-7" />
                     )}

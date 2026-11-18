@@ -1,3 +1,4 @@
+import { useMyProfile } from '../contexts/MyProfileContext';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowUpRight, BriefcaseBusiness, Clock3, Compass, Users } from 'lucide-react';
@@ -135,6 +136,8 @@ export function HomeDashboard({ data, profileName, loading = false, error, demo 
 // Replace the DEV source with B's query state, profile and bookmark actions,
 // and C's supplied MatchResult records. Production defaults to empty states.
 export function HomePage() {
+  const { profile } = useMyProfile();
+  const profileName = profile?.nickname?.trim() || profile?.name?.trim() || null;
   const [data, setData] = useState<DashboardData>();
   const [bookmarks, setBookmarks] = useState<string[]>([]);
   const [demoNow, setDemoNow] = useState<Date>();
@@ -156,6 +159,6 @@ export function HomePage() {
     if (!import.meta.env.DEV) return;
     setBookmarks((previous) => next ? [...new Set([...previous, id])] : previous.filter((item) => item !== id));
   };
-  return <HomeDashboard data={data} demo={Boolean(import.meta.env.DEV)} now={demoNow} loading={loading} error={error}
+  return <HomeDashboard profileName={profileName} data={data} demo={Boolean(import.meta.env.DEV)} now={demoNow} loading={loading} error={error}
     bookmarkIds={bookmarks} onBookmark={import.meta.env.DEV ? toggleDemoBookmark : undefined} />;
 }

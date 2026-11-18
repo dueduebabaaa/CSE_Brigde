@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 type AvatarSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 
@@ -47,15 +47,21 @@ export const Avatar: React.FC<AvatarProps> = ({
   size = 'md',
   className = '',
 }) => {
+  const imageSrc = src?.trim() || null;
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const { wrapper, text } = sizeStyles[size];
   const initials = getInitials(name || '?');
   const colorClass = getColorFromName(name || '?');
 
-  if (src) {
+  if (imageSrc && failedSrc !== imageSrc) {
     return (
       <img
-        src={src}
-        alt={name || '프로필'}
+        src={imageSrc}
+        alt=""
+        role="img"
+        aria-label={name || '프로필'}
+        referrerPolicy="no-referrer"
+        onError={event => { event.currentTarget.style.visibility = 'hidden'; setFailedSrc(imageSrc); }}
         className={`${wrapper} rounded-full object-cover shrink-0 ${className}`}
       />
     );

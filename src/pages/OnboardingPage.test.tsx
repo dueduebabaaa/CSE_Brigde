@@ -7,7 +7,7 @@ import { OnboardingPage } from './OnboardingPage';
 const profileMocks = vi.hoisted(() => ({
   fetchMyProfile: vi.fn(),
   saveMyProfile: vi.fn(),
-  user: { id: 'test-user', email: 'student@knu.ac.kr', email_confirmed_at: '2026-01-01T00:00:00Z', user_metadata: {} },
+  user: { id: 'test-user', email: 'student@knu.ac.kr', email_confirmed_at: '2026-01-01T00:00:00Z', user_metadata: {} as Record<string, string> },
 }));
 
 vi.mock('../hooks/useAuth', () => ({
@@ -54,6 +54,7 @@ async function openConfirmation() {
 
 beforeEach(() => {
   vi.stubGlobal('scrollTo', vi.fn());
+  profileMocks.user.user_metadata = {};
   profileMocks.fetchMyProfile.mockReset();
   profileMocks.saveMyProfile.mockReset();
   profileMocks.fetchMyProfile.mockResolvedValue(null);
@@ -62,6 +63,30 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe('온보딩 입력과 단계 검증', () => {
+  it('Google 이미지 로딩 실패 시 이름 첫 글자와 선택 테마로 대체한다', async () => {
+    profileMocks.user.user_metadata = { avatar_url: 'https://example.test/photo.jpg', full_name: '김학생' };
+    render(<MemoryRouter><OnboardingPage /></MemoryRouter>);
+    const image = screen.getByRole('img', { name: '김학생' });
+    expect(image.getAttribute('src')).toBe('https://example.test/photo.jpg');
+    expect(image.getAttribute('referrerpolicy')).toBe('no-referrer');
+    expect(image.getAttribute('alt')).toBe('');
+    fireEvent.error(image);
+    expect(screen.queryByRole('img', { name: '김학생' })).toBeNull();
+    const fallback = screen.getByLabelText('기본 프로필 아바타');
+    expect(fallback.textContent).toBe('김');
+    expect(fallback.className).toContain('bg-[#7D39EB]');
+    const colorButton = Array.from(document.querySelectorAll('button')).find(button => button.classList.contains('bg-blue-600'))!;
+    fireEvent.click(colorButton);
+    expect(fallback.className).toContain('bg-blue-600');
+    change(screen.getByPlaceholderText('홍길동'), '박학생');
+    expect(fallback.textContent).toBe('박');
+  });
+  it('Google 이미지 URL이 공백이면 이미지 요청 없이 기본 아바타를 표시한다', async () => {
+    profileMocks.user.user_metadata = { avatar_url: '   ', full_name: '이학생' };
+    render(<MemoryRouter><OnboardingPage /></MemoryRouter>);
+    expect(screen.queryByRole('img')).toBeNull();
+    expect(screen.getByLabelText('기본 프로필 아바타').textContent).toBe('이');
+  });
   it('프로필 조회가 실패하면 신규 회원 취급하지 않고 입력을 잠근다', async () => {
     profileMocks.fetchMyProfile.mockRejectedValueOnce(new Error('read failed'));
     render(<MemoryRouter><OnboardingPage /></MemoryRouter>);
