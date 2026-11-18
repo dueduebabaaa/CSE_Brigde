@@ -1,7 +1,7 @@
 import { filterValidAvailabilities } from './inputSafety';
 /**
  * BRIDGE — 주간 시간표 최적 회의 시간 추천 알고리즘 (Schedule Optimizer)
- * 
+ *
  * 여러 팀원의 30분 단위 주간 활동 가능 시간표를 비교하여
  * 1. 팀원 전원이 참석 가능한 연속된 최적 회의 시간대(1순위)
  * 2. 전원 참석이 불가능할 경우 최대 인원이 참석 가능한 대안 시간대(2순위)
@@ -73,7 +73,7 @@ function buildMemberSlotGrid(availabilities: Availability[] | undefined): boolea
 
 /**
  * 주간 시간표 최적 회의 시간 추천 메인 함수
- * 
+ *
  * @param teamMemberAvailabilities 팀원 ID를 키로 하고 각 팀원의 Availability 배열을 값으로 하는 객체
  * @param minimumDurationMinutes 최소 요구 연속 회의 시간 (분 단위, 기본값: 60분)
  * @returns 우선순위 및 참석률 기준으로 정렬된 추천 회의 슬롯 목록

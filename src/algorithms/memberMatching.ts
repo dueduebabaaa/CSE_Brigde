@@ -1,7 +1,7 @@
 import { filterValidAvailabilities, isPublicAlgorithmCandidate } from './inputSafety';
 /**
  * BRIDGE — 팀원 매칭 적합도 계산 알고리즘 (Member Matching)
- * 
+ *
  * 팀의 모집 요구사항(희망 역할, 요구 기술 스택)과 팀장의 활동 가능 시간표를 바탕으로
  * 후보 학생들의 프로필과 시간표를 비교하여 0~100점의 매칭 점수를 산출하고 최적의 팀원을 추천합니다.
  */
@@ -299,7 +299,7 @@ function extractAvailableSlotKeys(availabilities: Availability[] | undefined): S
 
 /**
  * 팀원 매칭 적합도 계산 메인 함수
- * 
+ *
  * @param targetRequirements 팀이 모집하는 희망 역할 및 요구 기술 스택
  * @param myAvailability 팀장(기준 학생)의 활동 가능 시간표
  * @param candidates 추천 대상 후보 학생들(프로필 및 시간표)

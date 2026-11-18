@@ -1,68 +1,74 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Mail, ArrowRight, ShieldCheck, Sparkles, AlertCircle, Compass, UserCheck } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
+import {
+  Mail,
+  ArrowRight,
+  ShieldCheck,
+  Sparkles,
+  AlertCircle,
+} from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 export const LoginPage: React.FC = () => {
-  const navigate = useNavigate();
+  const location = useLocation();
   const [emailPrefix, setEmailPrefix] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [authNotice, setAuthNotice] = useState<string | null>(null);
 
-  // Google OAuth 로그인 시도 핸들러
-  const handleGoogleLogin = (e: React.FormEvent) => {
+  useEffect(() => {
+    const state = location.state;
+    if (typeof state === 'object' && state !== null && 'authStatus' in state && state.authStatus === 'school_failed') {
+      setErrorMessage('경북대학교 학교 이메일 인증을 확인하지 못해 로그아웃했습니다. @knu.ac.kr 계정으로 다시 로그인해 주세요.');
+    }
+  }, [location.state]);
+
+  // 실제 Google OAuth 로그인 요청
+  const handleGoogleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
-    setAuthNotice(null);
 
     const trimmed = emailPrefix.trim();
+
     if (!trimmed) {
       setErrorMessage('경북대학교 웹메일 아이디를 입력해 주세요.');
       return;
     }
 
-    // 영문, 숫자, 마침표, 하이픈 등 이메일 로컬 파트 유효성 검사
     const idRegex = /^[a-zA-Z0-9._-]+$/;
+
     if (!idRegex.test(trimmed)) {
-      setErrorMessage('올바른 학교 이메일 아이디 형식이 아닙니다 (영문, 숫자, 특수기호 ._- 만 허용).');
+      setErrorMessage(
+        '올바른 학교 이메일 아이디 형식이 아닙니다 (영문, 숫자, 특수기호 ._- 만 허용).'
+      );
       return;
     }
 
     const fullEmail = `${trimmed}@knu.ac.kr`;
     setIsSubmitting(true);
 
-    // ─────────────────────────────────────────────────────────────
-    // [B 담당자 연동 지점] Supabase Auth Google OAuth 호출
-    // 비밀번호는 BRIDGE 내부에서 수집하지 않으며, Google 공식 인증 화면으로 연결됩니다.
-    //
-    // TODO (Backend/B):
-    // const { error } = await supabase.auth.signInWithOAuth({
-    //   provider: 'google',
-    //   options: {
-    //     queryParams: {
-    //       login_hint: fullEmail,
-    //       hd: 'knu.ac.kr', // 경북대 도메인 자동 필터링
-    //     },
-    //     redirectTo: `${window.location.origin}/`,
-    //   },
-    // });
-    // ─────────────────────────────────────────────────────────────
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          queryParams: {
+            login_hint: fullEmail,
+          },
+          redirectTo: `${window.location.origin}/`,
+        },
+      });
 
-    // 실제 인증 백엔드가 아직 연결되지 않은 상태이므로 임의 성공 처리하지 않고 안내를 제공합니다.
-    setTimeout(() => {
+      if (error) {
+        console.error('Google OAuth 요청 실패:', error);
+        setErrorMessage('Google 로그인 요청에 실패했습니다. 다시 시도해 주세요.');
+        setIsSubmitting(false);
+      }
+    } catch (error) {
+      console.error('Google 로그인 오류:', error);
+      setErrorMessage('로그인 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
       setIsSubmitting(false);
-      setAuthNotice(
-        `[Google OAuth 연동 준비 완료]\n전달 대상 계정: ${fullEmail}\n\n실제 Google 보안 인증창 연결은 B 담당자(Supabase) 작업 후 활성화됩니다. 비밀번호는 학교 Google 계정 공식 페이지에서만 입력하게 됩니다.`
-      );
-    }, 400);
+    }
   };
 
-  // 개발 환경 전용 둘러보기 (배포 환경에서는 동작하지 않음)
-  const handleDevBypass = (targetPath: string) => {
-    if (!import.meta.env.DEV) return;
-    localStorage.setItem('bridge_auth_preview', 'true');
-    navigate(targetPath);
-  };
 
   return (
     <div className="min-h-screen bg-[#000000] text-white flex flex-col lg:flex-row font-sans selection:bg-[#7D39EB] selection:text-white max-w-full overflow-x-hidden">
@@ -276,62 +282,10 @@ export const LoginPage: React.FC = () => {
           </div>
 
           {/* OAuth 연동 준비 상태 피드백 모달/알림 */}
-          {authNotice && (
-            <div className="mt-5 p-4 rounded-xl bg-[#141520] border border-[#7D39EB]/50 text-xs space-y-2">
-              <div className="flex items-center justify-between text-[#C6FF33] font-bold">
-                <span>OAuth 연동 대기 알림</span>
-                <button
-                  type="button"
-                  onClick={() => setAuthNotice(null)}
-                  className="text-[#94A3B8] hover:text-white"
-                >
-                  ✕
-                </button>
-              </div>
-              <p className="text-[#E2E8F0] whitespace-pre-line leading-relaxed font-mono text-[11px]">
-                {authNotice}
-              </p>
-              <div className="pt-2 text-[10px] text-[#94A3B8]">
-                * B 담당자가 Supabase Google Provider 활성화 시 자동 연결됩니다.
-              </div>
-            </div>
-          )}
 
           {/* ─────────────────────────────────────────────────────
               개발 환경 전용: UI/UX 검토용 둘러보기 (실제 배포 환경에서는 비노출)
           ───────────────────────────────────────────────────── */}
-          {import.meta.env.DEV && (
-            <div className="mt-8 p-4 rounded-xl bg-[#0E0F16] border border-dashed border-[#2E3148]">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-bold tracking-wider uppercase text-[#C6FF33] flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#C6FF33] animate-pulse" />
-                  개발 환경 전용 · UI 검토 모드
-                </span>
-                <span className="text-[10px] text-[#64748B]">Dev Only</span>
-              </div>
-              <p className="text-[11px] text-[#94A3B8] mb-3 leading-snug">
-                아직 백엔드 OAuth가 연결되지 않은 상태에서 각 화면의 디자인과 기능을 검토할 수 있도록 준비된 개발자용 바로가기입니다 (배포 빌드 시 비노출).
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleDevBypass('/')}
-                  className="py-2 px-3 rounded-lg bg-[#181926] hover:bg-[#242638] text-xs font-semibold text-white flex items-center justify-center gap-1.5 transition-colors border border-[#242634]"
-                >
-                  <Compass className="w-3.5 h-3.5 text-[#7D39EB]" />
-                  홈 대시보드 둘러보기
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDevBypass('/onboarding')}
-                  className="py-2 px-3 rounded-lg bg-[#181926] hover:bg-[#242638] text-xs font-semibold text-white flex items-center justify-center gap-1.5 transition-colors border border-[#242634]"
-                >
-                  <UserCheck className="w-3.5 h-3.5 text-[#C6FF33]" />
-                  프로필 온보딩 보기
-                </button>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* 하단 약관 & 카피라이트 */}

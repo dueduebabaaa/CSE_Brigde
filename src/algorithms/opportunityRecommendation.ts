@@ -1,7 +1,7 @@
 import { parseOpportunityTimestamp } from './inputSafety';
 /**
  * BRIDGE — 공모전 맞춤 추천 알고리즘 (Opportunity Recommendation)
- * 
+ *
  * 학생의 관심 분야, 보유 기술 스택, 학습 희망 기술 스택과
  * 공모전의 태그 및 모집 상태를 분석하여 0~100점의 적합도 점수와 추천 사유를 산출합니다.
  */
@@ -26,7 +26,7 @@ export interface OpportunityMatchResult {
 
 /**
  * 공모전 맞춤 추천 메인 함수
- * 
+ *
  * @param userProfile 학생의 프로필 정보 (관심 분야, 보유 기술, 학습 희망 기술)
  * @param opportunities 평가 대상 공모전 배열 (원본 배열을 수정하지 않음)
  * @param currentDate 마감일 판단을 위한 기준 시각 (테스트 시 주입 가능, 기본값: 현재 시각)

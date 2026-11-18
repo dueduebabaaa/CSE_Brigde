@@ -24,14 +24,9 @@ import { ProfilePage } from './pages/ProfilePage';
 import { AdminOpportunitiesPage } from './pages/AdminOpportunitiesPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 
-// 최초 접속 분기: 인증 또는 개발용 프리뷰 세션이 없으면 LoginPage 표시
+// 최초 접속 화면: 실제 인증 여부는 AppLayout에서 처리
 const RootRoute: React.FC = () => {
-  const isAuthed =
-    Boolean(import.meta.env.DEV) &&
-    typeof window !== 'undefined' &&
-    localStorage.getItem('bridge_auth_preview') === 'true';
-
-  return isAuthed ? <HomePage /> : <LoginPage />;
+  return <HomePage />;
 };
 
 export const App: React.FC = () => {
