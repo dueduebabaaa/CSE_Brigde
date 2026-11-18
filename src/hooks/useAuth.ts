@@ -76,4 +76,3 @@ export const useAuth = () => {
                     : 'signed_out',
     };
 };
-
