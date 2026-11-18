@@ -345,15 +345,16 @@ export function calculateMemberMatch(
     )
   );
 
-  const reqTechs = Array.from(
-    new Set(
-      (targetRequirements?.requiredTechStacks ?? [])
-        .map((t) => getCanonicalTag(t))
-        .filter((t) => t.length > 0)
-    )
-  );
-
-  const reqTechMap = new Map(reqTechs.map((t) => [t.toLowerCase(), t]));
+  // Deduplicate by comparison key while keeping canonical display values.
+  const reqTechMap = new Map<string, string>();
+  for (const tech of targetRequirements?.requiredTechStacks ?? []) {
+    const displayValue = getCanonicalTag(tech);
+    const key = displayValue.trim().toLowerCase();
+    if (key && !reqTechMap.has(key)) {
+      reqTechMap.set(key, displayValue);
+    }
+  }
+  const reqTechs = Array.from(reqTechMap.values());
 
   // 3. 팀장(기준 유저)의 유효 가능 슬롯 집합 추출
   const mySlots = extractAvailableSlotKeys(myAvailability);
@@ -382,19 +383,19 @@ export function calculateMemberMatch(
 
     // (2) 보유 기술 일치도 검증
     // candidate.profile.techStacks (wantedTechStacks는 미포함)
-    const candidateTechs = Array.from(
+    const candidateTechKeys = Array.from(
       new Set(
         (profile.techStacks ?? [])
-          .map((t) => getCanonicalTag(t))
+          .map((t) => getCanonicalTag(t).trim().toLowerCase())
           .filter((t) => t.length > 0)
       )
     );
 
     const matchedTechs: string[] = [];
-    for (const tech of candidateTechs) {
-      const lower = tech.toLowerCase();
-      if (reqTechMap.has(lower)) {
-        matchedTechs.push(reqTechMap.get(lower) ?? tech);
+    for (const key of candidateTechKeys) {
+      const displayValue = reqTechMap.get(key);
+      if (displayValue !== undefined) {
+        matchedTechs.push(displayValue);
       }
     }
 

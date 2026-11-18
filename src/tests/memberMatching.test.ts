@@ -436,3 +436,72 @@ describe('팀원 매칭 적합도 계산 알고리즘 (calculateMemberMatch)', (
     });
   });
 });
+
+
+describe('technology duplicate regression', () => {
+  function match(requiredTechStacks: string[], techStacks: string[]) {
+    return calculateMemberMatch(
+      { desiredRoles: [], requiredTechStacks },
+      [],
+      [{
+        profile: { ...mockUsers[0], id: 'tech-regression', isPublic: true, techStacks },
+        availability: [],
+      }]
+    )[0];
+  }
+
+  it.each([
+    { name: 'custom skill case', required: ['CustomTech', 'Python'], candidate: ['customtech'] },
+    { name: 'surrounding whitespace', required: [' CustomTech ', 'Python'], candidate: ['  customtech  '] },
+    { name: 'duplicate requirements', required: ['CustomTech', 'customtech', 'Python'], candidate: ['CustomTech'] },
+    { name: 'duplicate candidate skills', required: ['CustomTech', 'Python'], candidate: ['CustomTech', 'customtech'] },
+    { name: 'duplicates on both sides', required: ['CustomTech', ' customtech ', 'Python'], candidate: ['CustomTech', 'customtech', ' CustomTech '] },
+    { name: 'registered aliases', required: ['React', 'react', 'react.js', 'Python'], candidate: ['React', 'react', 'react.js'] },
+  ])('$name counts each technology once', ({ required, candidate }) => {
+    const result = match(required, candidate);
+    expect(result.score).toBe(50);
+    expect(result.matchedTechStacks).toEqual([required[0].trim()]);
+    expect(result.reasons).toContainEqual(expect.stringContaining('2\uac1c \uc911'));
+  });
+
+  it('keeps the final score unchanged when duplicates are added with all weights active', () => {
+    const availability: Availability[] = Array.from({ length: 4 }, (_, slot) => ({
+      id: `regression-${slot}`, userId: 'tech-regression', dayOfWeek: 1,
+      slot, isAvailable: true, updatedAt: '',
+    }));
+    function weightedMatch(requiredTechStacks: string[], techStacks: string[]) {
+      return calculateMemberMatch(
+        { desiredRoles: ['Frontend'], requiredTechStacks }, availability,
+        [{ profile: { ...mockUsers[0], isPublic: true, desiredRoles: ['Frontend'], techStacks }, availability }]
+      )[0];
+    }
+    const baseline = weightedMatch(['CustomTech', 'Python'], ['CustomTech']);
+    const duplicated = weightedMatch(['CustomTech', ' customtech ', 'Python'], ['CustomTech', 'customtech']);
+    // Role 45 + technology 30 * 1/2 + time 25 * 2/4 = 72.5 -> 73.
+    expect(baseline.score).toBe(73);
+    expect(duplicated).toEqual(baseline);
+  });
+
+  it('preserves custom display casing, canonical aliases, and every input object', () => {
+    const target = { desiredRoles: [], requiredTechStacks: ['MyCustomTECH', 'mycustomtech', 'react.js', 'React'] };
+    const candidates = [{
+      profile: { ...mockUsers[0], isPublic: true, techStacks: [' MYCUSTOMtech ', 'mycustomtech', 'react', 'React'] },
+      availability: [],
+    }];
+    const originalTarget = structuredClone(target);
+    const originalCandidates = structuredClone(candidates);
+    Object.freeze(target.requiredTechStacks);
+    Object.freeze(target);
+    Object.freeze(candidates[0].profile.techStacks);
+    Object.freeze(candidates[0].profile);
+    Object.freeze(candidates[0]);
+    Object.freeze(candidates);
+
+    const result = calculateMemberMatch(target, [], candidates)[0];
+    expect(result.score).toBe(100);
+    expect(result.matchedTechStacks).toEqual(['MyCustomTECH', 'React']);
+    expect(result.reasons).toContainEqual(expect.stringContaining('MyCustomTECH, React'));
+    expect(target).toEqual(originalTarget);
+    expect(candidates).toEqual(originalCandidates);
+  });
+});
