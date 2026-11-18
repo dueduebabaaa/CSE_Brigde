@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AppLayout } from './layouts/AppLayout';
+import { MyProfileProvider } from './contexts/MyProfileProvider';
 
 // 페이지 목록
 import { HomePage } from './pages/HomePage';
@@ -32,6 +33,7 @@ const RootRoute: React.FC = () => {
 export const App: React.FC = () => {
   return (
     <BrowserRouter>
+      <MyProfileProvider>
       <Routes>
         <Route element={<AppLayout />}>
           {/* 최초 접속 화면 (비로그인: 로그인 랜딩 / 로그인: 홈 대시보드) */}
@@ -77,6 +79,7 @@ export const App: React.FC = () => {
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>
+      </MyProfileProvider>
     </BrowserRouter>
   );
 };
