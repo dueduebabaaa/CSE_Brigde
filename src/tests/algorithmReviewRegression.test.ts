@@ -38,7 +38,7 @@ describe('검수 1·4: 공개 범위 및 알고리즘 전용 DTO', () => {
     expect(validateUserProfile(mockUsers[0]).data).toMatchObject({ visibility: 'public', isPublic: true });
   });
   it('검증을 우회한 비공개·충돌 후보도 일반 탐색과 팀 후보에서 제외한다', () => {
-    const candidates = ['private', 'team_only'].map((visibility, i) => ({ ...mockUsers[0], id: `private-${i}`, visibility, isPublic: true }));
+    const candidates = (['private', 'team_only'] as const).map((visibility, i) => ({ ...mockUsers[0], id: `private-${i}`, visibility, isPublic: true }));
     expect(calculateMemberMatch({ desiredRoles: ['Frontend'], requiredTechStacks: [] }, [], candidates.map(profile => ({ profile, availability: [] })))).toEqual([]);
     expect(analyzeTeamBalanceForRoles([], candidates, ['Frontend']).recommendedCandidates).toEqual([]);
   });

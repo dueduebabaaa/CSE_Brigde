@@ -38,7 +38,7 @@ export interface UserProfile {
   experiences: string[];
   githubUrl?: string | null;
   portfolioUrl?: string | null;
-  visibility?: ProfileVisibility;
+  visibility?: ProfileVisibility | null;
   isPublic: boolean; // 기존 알고리즘 호환용 공개 여부
   createdAt: string;
   updatedAt: string;
