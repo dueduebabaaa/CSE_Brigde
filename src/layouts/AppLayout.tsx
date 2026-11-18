@@ -1,5 +1,17 @@
-import React, { useState } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+
+import React, { useEffect, useState } from 'react';
+import {
+  NavLink,
+  Outlet,
+  useLocation,
+  useNavigate,
+  Navigate,
+} from 'react-router-dom';
+
+import { useAuth } from '../hooks/useAuth';
+import { supabase } from '../lib/supabase';
+import { fetchMyProfile, isProfileComplete } from '../services/profileService';
+
 import {
   LayoutDashboard,
   Compass,
@@ -15,9 +27,11 @@ import {
   LogOut,
   Plus,
 } from 'lucide-react';
+
 import { Avatar } from '../components/ui/Avatar';
 
-// ─── 네비게이션 그룹 정의 ──────────────────────────────
+// ─── 네비게이션 그룹 ──────────────────────────────
+
 interface NavItem {
   name: string;
   path: string;
@@ -57,19 +71,23 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
-// 목업 사용자 (B 담당자의 인증 연동 전 임시)
-const MOCK_USER = {
-  name: '개발자 A',
-  email: 'dev@knu.ac.kr',
-};
+// ─── 사이드바 ─────────────────────────────────────
 
-// ─── 사이드바 컴포넌트 ─────────────────────────────────
 interface SidebarProps {
-  onClose?: () => void;
-  onLogout?: () => void;
+  onClose: () => void;
+  onLogout: () => void;
+  userName: string;
+  userEmail: string;
+  avatarUrl: string | null;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ onClose, onLogout }) => {
+const Sidebar: React.FC<SidebarProps> = ({
+  onClose,
+  onLogout,
+  userName,
+  userEmail,
+  avatarUrl,
+}) => {
   return (
     <div className="flex flex-col h-full bg-[#0A0A0C] border-r border-[#1E1E2A]">
 
@@ -80,10 +98,10 @@ const Sidebar: React.FC<SidebarProps> = ({ onClose, onLogout }) => {
           className="flex items-center gap-2.5"
           onClick={onClose}
         >
-          {/* 로고 아이콘 — 그라데이션 최소화, 단색 Violet */}
           <div className="w-8 h-8 rounded-lg bg-[#7D39EB] flex items-center justify-center shrink-0">
             <span className="text-white font-black text-base leading-none">B</span>
           </div>
+
           <div>
             <span className="block font-black text-lg text-white tracking-tight leading-none">
               BRIDGE
@@ -94,29 +112,27 @@ const Sidebar: React.FC<SidebarProps> = ({ onClose, onLogout }) => {
           </div>
         </NavLink>
 
-        {/* 모바일 닫기 버튼 */}
-        {onClose && (
-          <button
-            onClick={onClose}
-            className="lg:hidden text-[#64748B] hover:text-white p-1 rounded-md transition-colors"
-            aria-label="메뉴 닫기"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        )}
+        <button
+          onClick={onClose}
+          className="lg:hidden text-[#64748B] hover:text-white p-1 rounded-md transition-colors"
+          aria-label="메뉴 닫기"
+        >
+          <X className="w-5 h-5" />
+        </button>
       </div>
 
       {/* 네비게이션 */}
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         {NAV_GROUPS.map((group, gi) => (
           <div key={group.label} className={gi > 0 ? 'mt-5' : ''}>
-            {/* 그룹 레이블 */}
             <p className="px-2 mb-1 text-[10px] font-bold tracking-widest text-[#4B5563] uppercase select-none">
               {group.label}
             </p>
+
             <ul className="space-y-0.5">
               {group.items.map((item) => {
                 const Icon = item.icon;
+
                 return (
                   <li key={item.path}>
                     <NavLink
@@ -136,6 +152,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onClose, onLogout }) => {
                         <Icon className="w-4 h-4 shrink-0" />
                         <span>{item.name}</span>
                       </div>
+
                       {item.badge && (
                         <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#C6FF33] text-black font-black tracking-wide">
                           {item.badge}
@@ -150,16 +167,24 @@ const Sidebar: React.FC<SidebarProps> = ({ onClose, onLogout }) => {
         ))}
       </nav>
 
-      {/* 하단 사용자 프로필 */}
+      {/* 실제 로그인 사용자 정보 */}
       <div className="px-3 py-3 border-t border-[#1E1E2A]">
         <div className="flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-[#181924] transition-colors group">
-          <Avatar name={MOCK_USER.name} size="sm" />
+          <Avatar
+            name={userName}
+            src={avatarUrl}
+            size="sm"
+          />
+
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-white leading-tight truncate">
-              {MOCK_USER.name}
+              {userName}
             </p>
-            <p className="text-[11px] text-[#64748B] truncate">{MOCK_USER.email}</p>
+            <p className="text-[11px] text-[#64748B] truncate">
+              {userEmail}
+            </p>
           </div>
+
           <button
             onClick={onLogout}
             className="shrink-0 text-[#4B5563] hover:text-[#94A3B8] transition-colors p-1 rounded"
@@ -174,34 +199,141 @@ const Sidebar: React.FC<SidebarProps> = ({ onClose, onLogout }) => {
   );
 };
 
-// ─── AppLayout ─────────────────────────────────────────
+// ─── AppLayout ────────────────────────────────────
+
 export const AppLayout: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [profileStatus, setProfileStatus] = useState<'loading' | 'complete' | 'incomplete' | 'error' | 'skip'>('loading');
+
   const location = useLocation();
   const navigate = useNavigate();
 
-  const isAuthed =
-    Boolean(import.meta.env.DEV) &&
-    typeof window !== 'undefined' &&
-    localStorage.getItem('bridge_auth_preview') === 'true';
+  const { user, loading, isLoggedIn, authStatus } = useAuth();
+  const isLoginPage = location.pathname === '/login';
+  const isOnboardingPage = location.pathname === '/onboarding';
 
-  const isAuthPage =
-    location.pathname === '/login' ||
-    location.pathname === '/signup' ||
-    location.pathname === '/onboarding' ||
-    (location.pathname === '/' && !isAuthed);
+  useEffect(() => {
+    if (loading) return;
+    if (!user || isLoginPage) {
+      setProfileStatus('skip');
+      return;
+    }
 
-  const handleLogout = () => {
-    localStorage.removeItem('bridge_auth_preview');
-    navigate('/login');
+    let active = true;
+    const refreshProfileStatus = () => {
+      setProfileStatus('loading');
+      void fetchMyProfile(user.id)
+        .then((profile) => {
+          if (active) setProfileStatus(isProfileComplete(profile) ? 'complete' : 'incomplete');
+        })
+        .catch((error) => {
+          console.error('프로필 상태 확인 실패:', error);
+          if (active) setProfileStatus('error');
+        });
+    };
+
+    refreshProfileStatus();
+    window.addEventListener('bridge-profile-updated', refreshProfileStatus);
+    return () => {
+      active = false;
+      window.removeEventListener('bridge-profile-updated', refreshProfileStatus);
+    };
+  }, [user, loading, isLoginPage]);
+
+  // Google 계정에서 사용자 정보 가져오기
+  const userEmail = user?.email ?? '';
+  const metadata = user?.user_metadata;
+
+  const metadataName =
+    typeof metadata?.full_name === 'string'
+      ? metadata.full_name
+      : typeof metadata?.name === 'string'
+        ? metadata.name
+        : '';
+
+  const userName =
+    metadataName ||
+    userEmail.split('@')[0] ||
+    '사용자';
+
+  const avatarUrl =
+    typeof metadata?.avatar_url === 'string'
+      ? metadata.avatar_url
+      : null;
+
+  // 실제 Supabase 로그아웃
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+
+      if (error) {
+        console.error('로그아웃 실패:', error);
+        alert('로그아웃에 실패했습니다.');
+        return;
+      }
+
+      navigate('/login', { replace: true });
+    } catch (error) {
+      console.error('로그아웃 오류:', error);
+      alert('로그아웃 중 오류가 발생했습니다.');
+    }
   };
 
-  // ── 로그인/회원가입 화면: 사이드바 & 헤더 숨김, 풀스크린 독립 렌더링 ──
-  if (isAuthPage) {
+  // 인증 상태 확인 중
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
+        <p className="text-sm text-[#64748B]">
+          로그인 상태 확인 중...
+        </p>
+      </div>
+    );
+  }
+
+  // 로그인하지 않은 사용자의 내부 페이지 접근 차단
+  if (!isLoggedIn && !isLoginPage) {
+    return <Navigate to="/login" replace state={{ authStatus }} />;
+  }
+
+  // 이미 로그인한 사용자가 로그인 화면에 접근하는 경우
+  if (isLoggedIn && isLoginPage) {
+    return <Navigate to="/" replace />;
+  }
+
+  // 로그인 화면은 독립적으로 표시
+  if (isLoginPage) {
     return <Outlet />;
   }
 
-  // ── 메인 레이아웃 ──
+  if (location.pathname.startsWith('/admin') && user?.app_metadata?.role !== 'admin') {
+    return <Navigate to="/" replace />;
+  }
+
+  if (isOnboardingPage) {
+    if (profileStatus === 'complete') return <Navigate to="/" replace />;
+    return <Outlet />;
+  }
+
+  if (profileStatus === 'loading' || profileStatus === 'skip') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
+        <p className="text-sm text-[#64748B]">프로필 상태를 확인하는 중입니다...</p>
+      </div>
+    );
+  }
+
+  if (profileStatus === 'error') {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-[#F8FAFC]">
+        <p className="text-sm text-[#64748B]">프로필 상태를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.</p>
+        <button className="text-sm font-semibold text-[#7D39EB]" onClick={() => window.location.reload()}>다시 시도</button>
+      </div>
+    );
+  }
+
+  if (profileStatus === 'incomplete') return <Navigate to="/onboarding" replace />;
+
+  // 메인 레이아웃
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex font-sans">
 
@@ -222,7 +354,13 @@ export const AppLayout: React.FC = () => {
           isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full',
         ].join(' ')}
       >
-        <Sidebar onClose={() => setIsMobileMenuOpen(false)} onLogout={handleLogout} />
+        <Sidebar
+          onClose={() => setIsMobileMenuOpen(false)}
+          onLogout={handleLogout}
+          userName={userName}
+          userEmail={userEmail}
+          avatarUrl={avatarUrl}
+        />
       </aside>
 
       {/* 메인 영역 */}
@@ -231,6 +369,7 @@ export const AppLayout: React.FC = () => {
         {/* 상단 헤더 */}
         <header className="sticky top-0 z-30 h-14 bg-white border-b border-[#E2E8F0] px-4 sm:px-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
+
             {/* 모바일 햄버거 */}
             <button
               onClick={() => setIsMobileMenuOpen(true)}
@@ -251,10 +390,23 @@ export const AppLayout: React.FC = () => {
             </div>
           </div>
 
-          {location.pathname === '/' && <NavLink to="/" aria-label="BRIDGE 홈" className="absolute left-1/2 inline-flex min-h-11 -translate-x-1/2 items-center gap-2 rounded-lg px-2 sm:hidden">
-            <span aria-hidden="true" className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#7D39EB] text-sm font-black text-white">B</span>
-            <span className="text-base font-black tracking-tight text-black">BRIDGE</span>
-          </NavLink>}
+          {location.pathname === '/' && (
+            <NavLink
+              to="/"
+              aria-label="BRIDGE 홈"
+              className="absolute left-1/2 inline-flex min-h-11 -translate-x-1/2 items-center gap-2 rounded-lg px-2 sm:hidden"
+            >
+              <span
+                aria-hidden="true"
+                className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#7D39EB] text-sm font-black text-white"
+              >
+                B
+              </span>
+              <span className="text-base font-black tracking-tight text-black">
+                BRIDGE
+              </span>
+            </NavLink>
+          )}
 
           <div className="flex items-center gap-2">
             <NavLink
@@ -264,12 +416,17 @@ export const AppLayout: React.FC = () => {
               <Plus className="w-3.5 h-3.5" />
               팀원 모집
             </NavLink>
+
             <NavLink
               to="/profile"
               className="w-8 h-8 rounded-full border border-[#E2E8F0] flex items-center justify-center hover:border-[#7D39EB] transition-colors overflow-hidden"
               title="마이페이지"
             >
-              <Avatar name={MOCK_USER.name} size="sm" />
+              <Avatar
+                name={userName}
+                src={avatarUrl}
+                size="sm"
+              />
             </NavLink>
           </div>
         </header>

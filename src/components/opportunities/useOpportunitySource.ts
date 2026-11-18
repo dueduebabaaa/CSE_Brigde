@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { OpportunitySource } from './opportunityModel';
+import { fetchOpportunities } from '../../services/opportunityService';
 
 const BOOKMARK_KEY = 'bridge_opportunity_demo_bookmarks_v1';
 function readBookmarks(): string[] {
@@ -10,20 +11,35 @@ function readBookmarks(): string[] {
   } catch { return []; }
 }
 
-// Replace only this source boundary with B's queries and C's supplied results.
-// No Supabase/auth/algorithm implementation. No fixtures are imported in production.
 export function useOpportunitySource(): OpportunitySource {
-  const [source, setSource] = useState<OpportunitySource>({ loading: Boolean(import.meta.env.DEV) });
+  const [source, setSource] = useState<OpportunitySource>({ loading: true, demo: false });
   const [bookmarkIds, setBookmarkIds] = useState(readBookmarks);
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
-    if (!import.meta.env.DEV) return;
     let active = true;
-    setSource({ loading: true });
-    Promise.all([import('../../data/mockData'), import('../dashboard/dashboardDemo')]).then(([mock, fixture]) => {
-      if (active) setSource({ opportunities: mock.mockOpportunities, recruitments: mock.mockRecruitments,
-        matches: fixture.demoDashboard.opportunityMatches, now: new Date(fixture.DEMO_NOW), loading: false });
-    }).catch(() => { if (active) setSource({ error: 'load-failed', loading: false }); });
+    setSource({ loading: true, demo: false, recruitments: [] });
+    void fetchOpportunities()
+      .then((opportunities) => {
+        if (active) {
+          setSource({
+            opportunities,
+            recruitments: [],
+            now: new Date(),
+            loading: false,
+            demo: false,
+          });
+        }
+      })
+      .catch((error: unknown) => {
+        if (active) {
+          setSource({
+            error: error instanceof Error ? error.message : '공고를 불러오지 못했습니다.',
+            recruitments: [],
+            loading: false,
+            demo: false,
+          });
+        }
+      });
     return () => { active = false; };
   }, [attempt]);
   const toggle = async (id: string, next: boolean) => {
@@ -32,6 +48,6 @@ export function useOpportunitySource(): OpportunitySource {
     sessionStorage.setItem(BOOKMARK_KEY, JSON.stringify(updated));
     setBookmarkIds(updated);
   };
-  return { ...source, demo: Boolean(import.meta.env.DEV), bookmarkIds,
+  return { ...source, demo: false, bookmarkIds,
     onBookmark: import.meta.env.DEV ? toggle : undefined, onRetry: () => setAttempt((value) => value + 1) };
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Sparkles,
@@ -26,7 +26,10 @@ import {
 } from 'lucide-react';
 import { MAJOR_TRACKS, GRADE_OPTIONS } from '../constants/majors';
 import { TechnologyPicker } from '../components/TechnologyPicker';
-
+import { useAuth } from '../hooks/useAuth';
+import { fetchMyProfile, saveMyProfile } from '../services/profileService';
+import type { ProfileUpsert } from '../services/profileService';
+import type { UserProfile } from '../services/profileService';
 // ─── 표준 태그 및 옵션 상수 정의 (docs/PROFILE_SPEC.md 준수) ───
 
 const INTEREST_OPTIONS = [
@@ -101,7 +104,7 @@ interface OnboardingFormState {
   // Step 3
   hasNoTech: boolean;
   techStacks: string[];
-  techProficiencies: Record<string, Proficiency>;
+  techProficiencies: Record<string, Proficiency | null>;
 
   // Step 4
   wantedTechStacks: string[];
@@ -121,9 +124,26 @@ interface OnboardingFormState {
 
 export const OnboardingPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
+
+  const googleName =
+    typeof user?.user_metadata?.full_name === 'string'
+      ? user.user_metadata.full_name
+      : typeof user?.user_metadata?.name === 'string'
+        ? user.user_metadata.name
+        : '';
+
+  const googleAvatarUrl =
+    typeof user?.user_metadata?.avatar_url === 'string'
+      ? user.user_metadata.avatar_url.trim()
+      : null;
+  const [failedAvatarUrl, setFailedAvatarUrl] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [stepError, setStepError] = useState<string>('');
   const [showCompleteModal, setShowCompleteModal] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [saveError, setSaveError] = useState<string>('');
+  const [profileLoadState, setProfileLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
 
   // 초기 폼 상태 (신규 사용자 기본 미선택)
   const [form, setForm] = useState<OnboardingFormState>({
@@ -155,6 +175,97 @@ export const OnboardingPage: React.FC = () => {
     visibility: '',
   });
 
+  // 로그인한 사용자의 기존 프로필 불러오기
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      setProfileLoadState('error');
+      return;
+    }
+
+    let cancelled = false;
+    setProfileLoadState('loading');
+
+    const loadProfile = async () => {
+      try {
+        const profile = await fetchMyProfile(user.id);
+
+        if (cancelled) return;
+        if (!profile) {
+          setProfileLoadState('ready');
+          return;
+        }
+        const existing = profile as UserProfile;
+
+        const interests = existing.interests ?? [];
+        const desiredRoles = existing.desired_roles ?? [];
+
+        const otherInterest = interests.find(
+          (item) => !INTEREST_OPTIONS.includes(item)
+        ) ?? '';
+
+        const otherRole = desiredRoles.find(
+          (item) => !DESIRED_ROLE_OPTIONS.some((role) => role.key === item)
+        ) ?? '';
+
+        const normalizedInterests = interests.map((item) =>
+          item === otherInterest && otherInterest ? '기타' : item
+        );
+
+        const normalizedRoles = desiredRoles.map((item) =>
+          item === otherRole && otherRole ? '기타' : item
+        );
+
+        const visibility = existing.visibility === 'public'
+          || existing.visibility === 'team_only'
+          || existing.visibility === 'private'
+          ? existing.visibility
+          : existing.is_public === true
+            ? 'public'
+            : '';
+
+        setForm((prev) => ({
+          ...prev,
+          name: existing.name ?? prev.name,
+          nickname: existing.nickname ?? '',
+          department: existing.department ?? prev.department,
+          grade: existing.grade ?? '',
+          track: existing.track ?? '',
+          interests: normalizedInterests,
+          otherInterest,
+          desiredRoles: normalizedRoles,
+          otherRole,
+          techStacks: existing.tech_stacks ?? [],
+          techProficiencies: existing.tech_proficiency ?? {},
+          hasNoTech: (existing.tech_stacks ?? []).length === 0,
+          wantedTechStacks: existing.wanted_tech_stacks ?? [],
+          activityTypes: existing.activity_types ?? [],
+          activityGoals: existing.activity_goals ?? [],
+          meetingWay: existing.activity_mode ?? '',
+          activityDuration: existing.activity_duration ?? '',
+          participationStatus: existing.availability_status ?? '',
+          bio: existing.bio ?? '',
+          longBio: existing.long_bio ?? '',
+          githubUrl: existing.github_url ?? '',
+          portfolioUrl: existing.portfolio_url ?? '',
+          visibility,
+        }));
+        setProfileLoadState('ready');
+      } catch (error) {
+        console.error('기존 프로필 불러오기 실패:', error);
+        if (!cancelled) {
+          setProfileLoadState('error');
+          setStepError('기존 프로필을 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.');
+        }
+      }
+    };
+
+    void loadProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, user]);
   // 배열 토글 헬퍼
   const toggleArrayItem = (key: keyof OnboardingFormState, item: string) => {
     setForm((prev) => {
@@ -299,12 +410,100 @@ export const OnboardingPage: React.FC = () => {
     setShowCompleteModal(true);
   };
 
-  // 모달 닫고 홈 대시보드로 이동
-  const handleFinishOnboarding = () => {
-    if (import.meta.env.DEV) {
-      localStorage.setItem('bridge_auth_preview', 'true');
+  // 프로필 저장 후 홈 대시보드로 이동
+  const handleFinishOnboarding = async () => {
+    if (isSaving) return;
+
+    setSaveError('');
+
+    if (profileLoadState !== 'ready') {
+      setSaveError(profileLoadState === 'loading'
+        ? '기존 프로필을 불러오는 중입니다.'
+        : '기존 프로필을 확인하지 못했습니다. 페이지를 새로고침한 뒤 다시 시도해 주세요.');
+      return;
     }
-    navigate('/');
+
+    if (authLoading || !user) {
+      setSaveError('로그인 정보를 확인할 수 없습니다. 다시 로그인해 주세요.');
+      return;
+    }
+
+    if (!user.email) {
+      setSaveError('계정 이메일을 확인할 수 없습니다.');
+      return;
+    }
+
+    if (!GRADE_OPTIONS.includes(form.grade as typeof GRADE_OPTIONS[number])) {
+      setSaveError('올바른 학년을 선택해 주세요.');
+      return;
+    }
+
+    if (!MAJOR_TRACKS.includes(form.track as typeof MAJOR_TRACKS[number])) {
+      setSaveError('올바른 세부전공을 선택해 주세요.');
+      return;
+    }
+
+    if (!form.visibility) {
+      setSaveError('프로필 공개 범위를 선택해 주세요.');
+      return;
+    }
+
+    const visibility = form.visibility as ProfileUpsert['visibility'];
+
+    const profileData: ProfileUpsert = {
+      id: user.id,
+      email: user.email,
+      name: form.name.trim(),
+      nickname: form.nickname.trim() || form.name.trim(),
+      grade: form.grade as ProfileUpsert['grade'],
+      track: form.track as ProfileUpsert['track'],
+      department: form.department.trim(),
+      bio: form.bio.trim(),
+      long_bio: form.longBio.trim(),
+      interests: form.interests
+        .map((item) => item === '기타' ? form.otherInterest.trim() : item)
+        .filter(Boolean),
+      tech_stacks: form.hasNoTech ? [] : form.techStacks,
+      tech_proficiency: form.hasNoTech ? {} : Object.fromEntries(
+        Object.entries(form.techProficiencies).filter(([technology]) => form.techStacks.includes(technology))
+      ),
+      wanted_tech_stacks: form.wantedTechStacks,
+      desired_roles: form.desiredRoles
+        .map((item) => item === '기타' ? form.otherRole.trim() : item)
+        .filter(Boolean),
+      activity_types: form.activityTypes,
+      activity_goals: form.activityGoals,
+      activity_mode: form.meetingWay ? form.meetingWay as ProfileUpsert['activity_mode'] : null,
+      activity_duration: form.activityDuration ? form.activityDuration as ProfileUpsert['activity_duration'] : null,
+      availability_status: form.participationStatus ? form.participationStatus as ProfileUpsert['availability_status'] : null,
+      github_url: form.githubUrl.trim() || null,
+      portfolio_url: form.portfolioUrl.trim() || null,
+      visibility,
+      is_public: visibility === 'public',
+      updated_at: new Date().toISOString(),
+    };
+
+    try {
+      setIsSaving(true);
+      await saveMyProfile(profileData);
+
+      window.dispatchEvent(new Event('bridge-profile-updated'));
+
+      if (import.meta.env.DEV) {
+        localStorage.setItem('bridge_auth_preview', 'true');
+      }
+
+      navigate('/');
+    } catch (error) {
+      console.error('프로필 저장 실패:', error);
+      setSaveError(
+        error instanceof Error
+          ? error.message
+          : '프로필 저장 중 오류가 발생했습니다.'
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -350,6 +549,11 @@ export const OnboardingPage: React.FC = () => {
           본문 온보딩 컨테이너
       ───────────────────────────────────────────────────────── */}
       <main className="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 py-8 sm:py-12 flex flex-col justify-between">
+        <fieldset
+          disabled={authLoading || profileLoadState !== 'ready'}
+          className="w-full min-w-0 border-0 p-0 m-0 flex-1 flex flex-col justify-between"
+          aria-busy={profileLoadState === 'loading'}
+        >
         <div className="space-y-8">
           {/* 단계 표시 및 타이틀 */}
           <div className="space-y-1.5">
@@ -384,6 +588,10 @@ export const OnboardingPage: React.FC = () => {
             </div>
           )}
 
+          {profileLoadState === 'loading' && (
+            <p role="status" className="text-xs text-[#94A3B8]">기존 프로필을 불러오는 중입니다...</p>
+          )}
+
           {/* ─────────────────────────────────────────────────────
               STEP 01: 기본 정보
           ───────────────────────────────────────────────────── */}
@@ -391,11 +599,28 @@ export const OnboardingPage: React.FC = () => {
             <div className="bg-[#0B0C10] border border-[#1E1E2A] rounded-2xl p-6 sm:p-8 space-y-6">
               {/* 프로필 아바타 & 색상 */}
               <div className="flex flex-col sm:flex-row sm:items-center gap-4 pb-6 border-b border-[#1E1E2A]">
-                <div
-                  className={`w-16 h-16 rounded-2xl ${form.avatarColor} flex items-center justify-center text-white font-black text-2xl shadow-sm shrink-0`}
-                >
-                  {form.name.trim() ? form.name.trim().charAt(0) : <User className="w-7 h-7" />}
-                </div>
+                {googleAvatarUrl && failedAvatarUrl !== googleAvatarUrl ? (
+                  <img
+                    src={googleAvatarUrl}
+                    alt=""
+                    role="img"
+                    aria-label={googleName || 'Google 프로필 사진'}
+                    referrerPolicy="no-referrer"
+                    onError={event => { event.currentTarget.style.visibility = 'hidden'; setFailedAvatarUrl(googleAvatarUrl); }}
+                    className="w-16 h-16 rounded-2xl object-cover shrink-0"
+                  />
+                ) : (
+                  <div
+                    aria-label="기본 프로필 아바타"
+                    className={`w-16 h-16 rounded-2xl ${form.avatarColor} flex items-center justify-center text-white font-black text-2xl shadow-sm shrink-0`}
+                  >
+                    {(form.name.trim() || googleName.trim()) ? (
+                      (form.name.trim() || googleName.trim()).charAt(0)
+                    ) : (
+                      <User className="w-7 h-7" />
+                    )}
+                  </div>
+                )}
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-[#E2E8F0] block">
                     프로필 아바타 테마 색상
@@ -406,9 +631,8 @@ export const OnboardingPage: React.FC = () => {
                         key={color}
                         type="button"
                         onClick={() => setForm((prev) => ({ ...prev, avatarColor: color }))}
-                        className={`w-6 h-6 rounded-full ${color} transition-transform ${
-                          form.avatarColor === color ? 'ring-2 ring-white scale-110' : 'opacity-70 hover:opacity-100'
-                        }`}
+                        className={`w-6 h-6 rounded-full ${color} transition-transform ${form.avatarColor === color ? 'ring-2 ring-white scale-110' : 'opacity-70 hover:opacity-100'
+                          }`}
                       />
                     ))}
                   </div>
@@ -460,11 +684,10 @@ export const OnboardingPage: React.FC = () => {
                       key={g}
                       type="button"
                       onClick={() => setForm((prev) => ({ ...prev, grade: g }))}
-                      className={`py-2 px-3 rounded-lg text-xs font-bold transition-all border ${
-                        form.grade === g
-                          ? 'bg-[#7D39EB] border-[#7D39EB] text-white shadow-sm'
-                          : 'bg-[#14151F] border-[#242634] text-[#94A3B8] hover:text-white hover:border-[#383A4E]'
-                      }`}
+                      className={`py-2 px-3 rounded-lg text-xs font-bold transition-all border ${form.grade === g
+                        ? 'bg-[#7D39EB] border-[#7D39EB] text-white shadow-sm'
+                        : 'bg-[#14151F] border-[#242634] text-[#94A3B8] hover:text-white hover:border-[#383A4E]'
+                        }`}
                     >
                       {g}
                     </button>
@@ -493,11 +716,10 @@ export const OnboardingPage: React.FC = () => {
                         key={t}
                         type="button"
                         onClick={() => setForm((prev) => ({ ...prev, track: t }))}
-                        className={`p-3 rounded-xl text-left transition-all border flex items-center justify-between ${
-                          form.track === t
-                            ? 'bg-[#7D39EB]/15 border-[#7D39EB] text-white'
-                            : 'bg-[#14151F] border-[#242634] text-[#94A3B8] hover:text-white'
-                        }`}
+                        className={`p-3 rounded-xl text-left transition-all border flex items-center justify-between ${form.track === t
+                          ? 'bg-[#7D39EB]/15 border-[#7D39EB] text-white'
+                          : 'bg-[#14151F] border-[#242634] text-[#94A3B8] hover:text-white'
+                          }`}
                       >
                         <span className="text-xs font-bold">{t}</span>
                         {form.track === t && <Check className="w-4 h-4 text-[#C6FF33]" />}
@@ -538,11 +760,10 @@ export const OnboardingPage: React.FC = () => {
                         key={item}
                         type="button"
                         onClick={() => toggleArrayItem('interests', item)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
-                          isSelected
-                            ? 'bg-[#C6FF33] text-black border-[#C6FF33] font-bold shadow-sm'
-                            : 'bg-[#14151F] text-[#94A3B8] border-[#242634] hover:text-white hover:border-[#383A4E]'
-                        }`}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${isSelected
+                          ? 'bg-[#C6FF33] text-black border-[#C6FF33] font-bold shadow-sm'
+                          : 'bg-[#14151F] text-[#94A3B8] border-[#242634] hover:text-white hover:border-[#383A4E]'
+                          }`}
                       >
                         {item}
                       </button>
@@ -568,17 +789,15 @@ export const OnboardingPage: React.FC = () => {
                         key={role.key}
                         type="button"
                         onClick={() => toggleArrayItem('desiredRoles', role.key)}
-                        className={`p-3.5 rounded-xl text-left transition-all border flex flex-col justify-between gap-2 ${
-                          isSelected
-                            ? 'bg-[#7D39EB]/20 border-[#7D39EB] text-white shadow-sm ring-1 ring-[#7D39EB]'
-                            : 'bg-[#14151F] border-[#242634] text-[#94A3B8] hover:text-white hover:border-[#383A4E]'
-                        }`}
+                        className={`p-3.5 rounded-xl text-left transition-all border flex flex-col justify-between gap-2 ${isSelected
+                          ? 'bg-[#7D39EB]/20 border-[#7D39EB] text-white shadow-sm ring-1 ring-[#7D39EB]'
+                          : 'bg-[#14151F] border-[#242634] text-[#94A3B8] hover:text-white hover:border-[#383A4E]'
+                          }`}
                       >
                         <div className="flex items-center justify-between">
                           <div
-                            className={`p-2 rounded-lg ${
-                              isSelected ? 'bg-[#7D39EB] text-white' : 'bg-[#1D1E2C] text-[#94A3B8]'
-                            }`}
+                            className={`p-2 rounded-lg ${isSelected ? 'bg-[#7D39EB] text-white' : 'bg-[#1D1E2C] text-[#94A3B8]'
+                              }`}
                           >
                             <Icon className="w-4 h-4" />
                           </div>
@@ -614,11 +833,10 @@ export const OnboardingPage: React.FC = () => {
                 type="button"
                 aria-pressed={form.hasNoTech}
                 onClick={toggleHasNoTech}
-                className={`w-full text-left p-4 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
-                  form.hasNoTech
-                    ? 'bg-[#C6FF33]/15 border-[#C6FF33] text-white'
-                    : 'bg-[#0B0C10] border-[#1E1E2A] text-[#94A3B8] hover:border-[#383A4E]'
-                }`}
+                className={`w-full text-left p-4 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${form.hasNoTech
+                  ? 'bg-[#C6FF33]/15 border-[#C6FF33] text-white'
+                  : 'bg-[#0B0C10] border-[#1E1E2A] text-[#94A3B8] hover:border-[#383A4E]'
+                  }`}
               >
                 <div>
                   <span className="text-xs font-bold text-white block">
@@ -629,9 +847,8 @@ export const OnboardingPage: React.FC = () => {
                   </span>
                 </div>
                 <div
-                  className={`w-5 h-5 rounded flex items-center justify-center border ${
-                    form.hasNoTech ? 'bg-[#C6FF33] border-[#C6FF33] text-black font-bold' : 'border-[#383A4E]'
-                  }`}
+                  className={`w-5 h-5 rounded flex items-center justify-center border ${form.hasNoTech ? 'bg-[#C6FF33] border-[#C6FF33] text-black font-bold' : 'border-[#383A4E]'
+                    }`}
                 >
                   {form.hasNoTech && <Check className="w-3.5 h-3.5" />}
                 </div>
@@ -681,15 +898,14 @@ export const OnboardingPage: React.FC = () => {
                                     key={level}
                                     type="button"
                                     onClick={() => setTechLevel(tech, level)}
-                                    className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all border ${
-                                      currentLevel === level
-                                        ? level === '입문'
-                                          ? 'bg-[#1E202E] text-slate-300 border-slate-500'
-                                          : level === '활용 가능'
+                                    className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all border ${currentLevel === level
+                                      ? level === '입문'
+                                        ? 'bg-[#1E202E] text-slate-300 border-slate-500'
+                                        : level === '활용 가능'
                                           ? 'bg-[#7D39EB] text-white border-[#7D39EB]'
                                           : 'bg-[#C6FF33] text-black border-[#C6FF33] font-bold'
-                                        : 'bg-transparent text-[#94A3B8] border-transparent hover:text-white'
-                                    }`}
+                                      : 'bg-transparent text-[#94A3B8] border-transparent hover:text-white'
+                                      }`}
                                   >
                                     {level}
                                   </button>
@@ -732,11 +948,10 @@ export const OnboardingPage: React.FC = () => {
                         key={item}
                         type="button"
                         onClick={() => toggleArrayItem('activityTypes', item)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
-                          isSelected
-                            ? 'bg-[#7D39EB] text-white border-[#7D39EB]'
-                            : 'bg-[#14151F] text-[#94A3B8] border-[#242634] hover:text-white'
-                        }`}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${isSelected
+                          ? 'bg-[#7D39EB] text-white border-[#7D39EB]'
+                          : 'bg-[#14151F] text-[#94A3B8] border-[#242634] hover:text-white'
+                          }`}
                       >
                         {item}
                       </button>
@@ -758,11 +973,10 @@ export const OnboardingPage: React.FC = () => {
                         key={item}
                         type="button"
                         onClick={() => toggleArrayItem('activityGoals', item)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
-                          isSelected
-                            ? 'bg-[#7D39EB] text-white border-[#7D39EB]'
-                            : 'bg-[#14151F] text-[#94A3B8] border-[#242634] hover:text-white'
-                        }`}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${isSelected
+                          ? 'bg-[#7D39EB] text-white border-[#7D39EB]'
+                          : 'bg-[#14151F] text-[#94A3B8] border-[#242634] hover:text-white'
+                          }`}
                       >
                         {item}
                       </button>
@@ -783,11 +997,10 @@ export const OnboardingPage: React.FC = () => {
                         key={way}
                         type="button"
                         onClick={() => setForm((prev) => ({ ...prev, meetingWay: way }))}
-                        className={`py-2 px-2 rounded-lg text-xs font-semibold text-center transition-all border ${
-                          form.meetingWay === way
-                            ? 'bg-[#7D39EB] text-white border-[#7D39EB]'
-                            : 'bg-[#14151F] text-[#94A3B8] border-[#242634] hover:text-white'
-                        }`}
+                        className={`py-2 px-2 rounded-lg text-xs font-semibold text-center transition-all border ${form.meetingWay === way
+                          ? 'bg-[#7D39EB] text-white border-[#7D39EB]'
+                          : 'bg-[#14151F] text-[#94A3B8] border-[#242634] hover:text-white'
+                          }`}
                       >
                         {way}
                       </button>
@@ -805,11 +1018,10 @@ export const OnboardingPage: React.FC = () => {
                         key={dur}
                         type="button"
                         onClick={() => setForm((prev) => ({ ...prev, activityDuration: dur }))}
-                        className={`py-2 px-2 rounded-lg text-xs font-semibold text-center transition-all border ${
-                          form.activityDuration === dur
-                            ? 'bg-[#7D39EB] text-white border-[#7D39EB]'
-                            : 'bg-[#14151F] text-[#94A3B8] border-[#242634] hover:text-white'
-                        }`}
+                        className={`py-2 px-2 rounded-lg text-xs font-semibold text-center transition-all border ${form.activityDuration === dur
+                          ? 'bg-[#7D39EB] text-white border-[#7D39EB]'
+                          : 'bg-[#14151F] text-[#94A3B8] border-[#242634] hover:text-white'
+                          }`}
                       >
                         {dur.split(' ')[0]}
                       </button>
@@ -829,11 +1041,10 @@ export const OnboardingPage: React.FC = () => {
                       key={st.key}
                       type="button"
                       onClick={() => setForm((prev) => ({ ...prev, participationStatus: st.key }))}
-                      className={`p-3 rounded-xl text-left transition-all border ${
-                        form.participationStatus === st.key
-                          ? 'bg-[#7D39EB]/15 border-[#7D39EB] text-white'
-                          : 'bg-[#14151F] border-[#242634] text-[#94A3B8] hover:text-white'
-                      }`}
+                      className={`p-3 rounded-xl text-left transition-all border ${form.participationStatus === st.key
+                        ? 'bg-[#7D39EB]/15 border-[#7D39EB] text-white'
+                        : 'bg-[#14151F] border-[#242634] text-[#94A3B8] hover:text-white'
+                        }`}
                     >
                       <div className="flex items-center gap-1.5 mb-1">
                         <span className={`w-2 h-2 rounded-full ${st.color}`} />
@@ -935,11 +1146,10 @@ export const OnboardingPage: React.FC = () => {
                         key={v.key}
                         type="button"
                         onClick={() => setForm((prev) => ({ ...prev, visibility: v.key as OnboardingFormState['visibility'] }))}
-                        className={`p-3 rounded-xl text-left transition-all border flex flex-col justify-between ${
-                          isSelected
-                            ? 'bg-[#7D39EB]/15 border-[#7D39EB] text-white'
-                            : 'bg-[#14151F] border-[#242634] text-[#94A3B8] hover:text-white'
-                        }`}
+                        className={`p-3 rounded-xl text-left transition-all border flex flex-col justify-between ${isSelected
+                          ? 'bg-[#7D39EB]/15 border-[#7D39EB] text-white'
+                          : 'bg-[#14151F] border-[#242634] text-[#94A3B8] hover:text-white'
+                          }`}
                       >
                         <div className="flex items-center gap-1.5 mb-1">
                           <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-[#C6FF33]' : 'text-[#94A3B8]'}`} />
@@ -1009,10 +1219,11 @@ export const OnboardingPage: React.FC = () => {
             )}
           </div>
         </div>
+        </fieldset>
       </main>
 
       {/* ─────────────────────────────────────────────────────
-          완료 안내 모달 (실제 DB 연동 전 피드백)
+          완료 안내 모달 (프로필 저장)
       ───────────────────────────────────────────────────── */}
       {showCompleteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
@@ -1024,7 +1235,7 @@ export const OnboardingPage: React.FC = () => {
             <div className="text-center space-y-1">
               <h3 className="text-lg font-bold text-white">프로필 입력 확인</h3>
               <p className="text-xs text-[#94A3B8] leading-relaxed">
-                <strong className="text-white">{form.name}</strong>님의 입력 내용을 확인했습니다. 아직 프로필은 저장되지 않았습니다.
+                <strong className="text-white">{form.name}</strong>님의 프로필 입력 내용을 확인했습니다. 저장 후 BRIDGE를 시작합니다.
               </p>
             </div>
 
@@ -1044,18 +1255,23 @@ export const OnboardingPage: React.FC = () => {
                 </span>
               </div>
               <div className="pt-2 border-t border-[#1E1E2A] text-[11px] text-[#94A3B8]">
-                * 현재 단계에서는 클라이언트 상태만 검증하며, 저장 기능은 아직 연결되지 않았습니다. 새로고침하거나 화면을 나가면 입력 내용이 사라집니다.
+                * 프로필을 저장하면 입력한 기본 정보와 공개 범위가 계정에 연결됩니다.
               </div>
             </div>
 
-            <button type="button" onClick={() => setShowCompleteModal(false)} className="w-full py-2 text-xs text-[#94A3B8]">입력 내용 계속 수정하기</button>
+            {saveError && (
+              <p role="alert" className="text-xs text-red-400 text-center break-words">{saveError}</p>
+            )}
+
+               <button type="button" disabled={isSaving} onClick={() => setShowCompleteModal(false)} className="w-full py-2 text-xs text-[#94A3B8] disabled:opacity-50">입력 내용 계속 수정하기</button>
             <button
               type="button"
               onClick={handleFinishOnboarding}
-              className="w-full py-3 rounded-xl bg-[#C6FF33] hover:bg-[#B8F224] text-black font-extrabold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+              disabled={isSaving || authLoading || profileLoadState !== 'ready'}
+              className="w-full py-3 rounded-xl bg-[#C6FF33] hover:bg-[#B8F224] text-black font-extrabold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Compass className="w-4 h-4" />
-              홈으로 이동 (입력 내용은 저장되지 않음)
+              {isSaving ? "저장 중..." : "프로필 저장 후 BRIDGE 시작하기"}
             </button>
           </div>
         </div>

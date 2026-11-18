@@ -9,4 +9,3 @@ export const TECH_CATALOG: Record<string, string[]> = {
   'Infra / DevOps': ['Git', 'GitHub', 'Docker', 'AWS', 'Linux'],
   기타: ['Unity', 'Unreal Engine', 'Arduino', 'R'],
 };
-

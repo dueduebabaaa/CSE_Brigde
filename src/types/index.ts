@@ -1,7 +1,9 @@
+import type { MajorTrack } from '../constants/majors';
+
 /**
  * BRIDGE — 경북대학교 컴퓨터학부 학생 통합 협업 플랫폼
  * 공통 TypeScript 데이터 타입 정의 (초안)
- * 
+ *
  * 모든 엔티티는 Supabase PostgreSQL 스키마 및 RLS(Row Level Security) 설계와 일관성을 유지합니다.
  */
 
@@ -11,11 +13,14 @@
 export type GradeType = '1학년' | '2학년' | '3학년' | '4학년' | '대학원생';
 
 export type TrackType =
+  | MajorTrack
   | '플랫폼소프트웨어'
-  | '데이터사이언스'
   | '인공지능컴퓨팅'
+  | '데이터사이언스'
   | '글로벌소프트웨어융합'
   | '심화컴퓨터공학';
+
+export type ProfileVisibility = 'public' | 'team_only' | 'private';
 
 export interface UserProfile {
   id: string; // Supabase auth.users UUID
@@ -25,6 +30,7 @@ export interface UserProfile {
   grade: GradeType;
   track: TrackType;
   bio: string;
+  longBio?: string;
   interests: string[];
   techStacks: string[];
   wantedTechStacks: string[];
@@ -32,7 +38,8 @@ export interface UserProfile {
   experiences: string[];
   githubUrl?: string | null;
   portfolioUrl?: string | null;
-  isPublic: boolean; // 프로필 검색 및 탐색 공개 동의 여부
+  visibility?: ProfileVisibility | null;
+  isPublic: boolean; // 기존 알고리즘 호환용 공개 여부
   createdAt: string;
   updatedAt: string;
 }

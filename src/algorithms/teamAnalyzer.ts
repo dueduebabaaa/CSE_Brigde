@@ -1,14 +1,14 @@
 import { isPublicAlgorithmCandidate } from './inputSafety';
 /**
  * BRIDGE — 팀 빌더 역량 균형도 분석 알고리즘 (Team Analyzer)
- * 
+ *
  * 현재 팀원들의 희망 역할과 기술 스택을 분석하여
  * 1. 6개 기술 분야별 레이더 차트 커버리지 점수(0~100점)
  * 2. 충족된 역할과 부족한 역할 분석 (1인 1역할 최대 매칭)
  * 3. 역할 균형 여부 및 안내 경고 메시지
  * 4. 부족한 역할을 보완할 수 있는 최적의 후보 인재 추천
  * 을 산출합니다.
- * 
+ *
  * [주의사항]
  * UserProfile.desiredRoles는 학생이 희망하는 역할이지 확정된 실제 담당 역할이 아닙니다.
  * 팀 내 실제 확정된 담당 역할을 기준으로 분석하려면 TeamMember.role 데이터를 전달받아야 합니다.
@@ -275,7 +275,7 @@ export function getCandidateAllCapableRoles(roles: string[] | undefined): string
 
 /**
  * 최대 이분 매칭 (Maximum Bipartite Matching)
- * 
+ *
  * 한 팀원이 하나의 필수 역할만 담당하도록 1인 1역할을 엄격히 배정하여
  * 충족할 수 있는 최대 필수 역할 개수 및 배정 결과를 산출합니다.
  * (DATA_CONTRACT.md 3.3절: PM/기획, Marketing 등 레이더 6축 밖의 필수 역할도 정상 매칭 지원)
@@ -342,7 +342,7 @@ function solveMaximumRoleAssignment(
 
 /**
  * 팀원들의 기술 스택을 바탕으로 6대 분야 레이더 차트 점수를 계산합니다.
- * 
+ *
  * [점수 산정 기준]
  * 숙련도를 임의 추정하지 않고, 팀 전체가 보유한 고유 기술 개수(기술 커버리지 범위)를 기준으로 환산합니다.
  * - 0개: 0점 (해당 분야 기술 전무)
@@ -399,7 +399,7 @@ function calculateRadarScores(teamMembers: UserProfile[]): RadarChartScore[] {
 
 /**
  * 부족한 역할(missingRoles)을 보완할 수 있는 최적의 후보 학생들을 추천합니다.
- * 
+ *
  * [후보 선정 및 fitScore 산출 기준 (0~100점)]
  * 1. profile.isPublic === true인 공개 프로필만 대상
  * 2. 현재 팀원(teamMembers)에 이미 속한 학생은 제외
@@ -590,7 +590,7 @@ function generateWarnings(
 
 /**
  * [보조 함수] 프로젝트 필수 역할 목록을 명시적으로 받아 분석하는 함수
- * 
+ *
  * @param teamMembers 현재 팀원 프로필 목록
  * @param allCandidatesPool 추천 대상 전체 학생 풀
  * @param requiredRoles 프로젝트에 반드시 필요한 역할 목록 (예: ['Frontend', 'Backend', 'UI/UX', 'PM/기획'])
@@ -677,7 +677,7 @@ export function analyzeTeamBalanceForRoles(
 
 /**
  * [기존 API 규약 준수 함수] 팀 빌더 역량 균형도 분석 (API_CONTRACT.md 3-3)
- * 
+ *
  * 필수 역할 정보가 인자로 주어지지 않는 기존 함수 규격을 100% 유지하며,
  * 필수 역할을 임의로 단정하지 않고 '미판정' 안내와 레이더 차트 기술 커버리지를 반환합니다.
  */
