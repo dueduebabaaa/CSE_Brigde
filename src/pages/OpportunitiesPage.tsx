@@ -1,7 +1,7 @@
 import { OpportunityExplorer } from '../components/opportunities/OpportunityExplorer';
-import { useOpportunitySource } from '../components/opportunities/useOpportunitySource';
+import { useSharedOpportunitySource } from '../components/opportunities/OpportunitySourceLayout';
 
 export function OpportunitiesPage() {
-  const source = useOpportunitySource();
+  const source = useSharedOpportunitySource();
   return <OpportunityExplorer {...source} />;
 }

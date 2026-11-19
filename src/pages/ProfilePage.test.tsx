@@ -6,14 +6,22 @@ import { MyProfileProvider } from '../contexts/MyProfileProvider';
 import { useMyProfile } from '../contexts/MyProfileContext';
 import { ProfilePage } from './ProfilePage';
 import { HomePage } from './HomePage';
+import { OpportunitySourceLayout } from '../components/opportunities/OpportunitySourceLayout';
 import { profileFixture } from '../features/profile/profileFixture';
 import type { UserProfile } from '../services/profileService';
 const mocks = vi.hoisted(() => ({ auth: { user: { id: 'user-a' } as { id: string } | null, loading: false }, fetch: vi.fn(), update: vi.fn() }));
 vi.mock('../hooks/useAuth', () => ({ useAuth: () => mocks.auth }));
 vi.mock('../services/profileService', () => ({ fetchMyProfile: mocks.fetch, updateMyProfile: mocks.update }));
+vi.mock('../services/opportunityService', () => ({ fetchOpportunities: async () => [] }));
 const deferred = <T,>() => { let resolve!: (value: T) => void; let reject!: (value: unknown) => void; const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
 function TestApp() {
-  return <MemoryRouter><MyProfileProvider><Link to="/">프로필 화면</Link><Link to="/home">홈 화면</Link><Routes><Route path="/" element={<ProfilePage />} /><Route path="/home" element={<HomePage />} /></Routes></MyProfileProvider></MemoryRouter>;
+  return <MemoryRouter><MyProfileProvider>
+    <Link to="/">프로필 화면</Link><Link to="/home">홈 화면</Link>
+    <Routes>
+      <Route path="/" element={<ProfilePage />} />
+      <Route element={<OpportunitySourceLayout />}><Route path="/home" element={<HomePage />} /></Route>
+    </Routes>
+  </MyProfileProvider></MemoryRouter>;
 }
 const save = () => fireEvent.click(screen.getByRole('button', { name: '프로필 저장' }));
 const edit = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });

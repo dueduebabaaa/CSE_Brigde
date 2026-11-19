@@ -3,7 +3,7 @@ import { ArrowLeft, ArrowUpRight, ExternalLink, Users } from 'lucide-react';
 import { Badge, Button, EmptyState, LoadingState, SkillTag } from '../ui';
 import { Tags } from '../dashboard/DashboardCards';
 import { displayTitle, safeExternalUrl } from '../dashboard/dashboardModel';
-import { BookmarkButton, DemoNotice, OpportunityGraphic, Recommendation } from './OpportunityUI';
+import { BookmarkButton, DemoNotice, OpportunityGraphic, Recommendation, RecommendationStatus } from './OpportunityUI';
 import { fullDate, opportunityStatus, publicOpportunities, recommendationMap, STATUS_LABELS } from './opportunityModel';
 import type { OpportunitySource } from './opportunityModel';
 import type { Opportunity } from '../../types';
@@ -16,7 +16,7 @@ export interface OpportunityDetailProps extends Omit<OpportunitySource, 'opportu
 }
 
 export function OpportunityDetail({ opportunity, matches = [], recruitments, details: _details, backTo = '/opportunities', loading, error,
-  onRetry, demo = false, now = new Date(), bookmarkIds = [], onBookmark }: OpportunityDetailProps) {
+  onRetry, demo = false, now = new Date(), bookmarkIds = [], onBookmark, profileStatus, onProfileRetry }: OpportunityDetailProps) {
   const item = opportunity && publicOpportunities([opportunity], now).length ? opportunity : null;
   const match = item ? recommendationMap(matches).get(item.id) : undefined;
   const status = item ? opportunityStatus(item, now) : 'unknown';
@@ -60,7 +60,7 @@ export function OpportunityDetail({ opportunity, matches = [], recruitments, det
 
         <section aria-label="추천 이유" className="min-w-0 rounded-2xl border border-[#7D39EB]/15 bg-[#F4EFFE]/50 p-5 sm:p-7">
           <h2 className="mb-4 text-base font-bold text-[#0F172A]">나에게 맞는 이유</h2>
-          {match ? <Recommendation match={match} demo={demo} /> : <p className="text-sm leading-relaxed text-[#64748B]">아직 제공된 추천 결과가 없어요.</p>}
+          {match ? <Recommendation match={match} demo={demo} /> : <RecommendationStatus profileStatus={profileStatus} onProfileRetry={onProfileRetry} />}
           {match?.matchedTags.length ? <div className="mt-4"><Tags tags={match.matchedTags} /></div> : null}
         </section>
 
