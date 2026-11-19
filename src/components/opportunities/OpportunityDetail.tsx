@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft, ArrowUpRight, ExternalLink, Users } from 'lucide-react';
 import { Badge, Button, EmptyState, LoadingState, SkillTag } from '../ui';
 import { Tags } from '../dashboard/DashboardCards';
-import { deadlineLabel, displayTitle, safeExternalUrl } from '../dashboard/dashboardModel';
+import { displayTitle, safeExternalUrl } from '../dashboard/dashboardModel';
 import { BookmarkButton, DemoNotice, OpportunityGraphic, Recommendation } from './OpportunityUI';
 import { fullDate, opportunityStatus, publicOpportunities, recommendationMap, STATUS_LABELS } from './opportunityModel';
 import type { OpportunitySource } from './opportunityModel';
@@ -15,7 +15,7 @@ export interface OpportunityDetailProps extends Omit<OpportunitySource, 'opportu
   details?: { activityPeriod?: string | null; eligibility?: string | null };
 }
 
-export function OpportunityDetail({ opportunity, matches = [], recruitments, details, backTo = '/opportunities', loading, error,
+export function OpportunityDetail({ opportunity, matches = [], recruitments, details: _details, backTo = '/opportunities', loading, error,
   onRetry, demo = false, now = new Date(), bookmarkIds = [], onBookmark }: OpportunityDetailProps) {
   const item = opportunity && publicOpportunities([opportunity], now).length ? opportunity : null;
   const match = item ? recommendationMap(matches).get(item.id) : undefined;
@@ -44,9 +44,12 @@ export function OpportunityDetail({ opportunity, matches = [], recruitments, det
           </div>
           <aside aria-label="지원 정보" className="min-w-0 rounded-2xl border border-[#7D39EB]/20 bg-[#F4EFFE] p-5 sm:p-6 xl:col-span-4">
             <OpportunityGraphic category={item.category} compact />
-            <p className="mb-2 mt-5 text-2xl font-bold text-[#7D39EB]">{status === 'closed' ? '모집 마감' : deadlineLabel(item.deadline, now)}</p>
-            <p className="text-xs leading-relaxed text-[#64748B]">모집 마감 {fullDate(item.deadline)}</p>
-            <div className="mt-5 space-y-2">
+            <div className="mt-4 rounded-xl border border-[#7D39EB]/15 bg-white/80 p-3.5">
+              <p className="text-xs font-semibold leading-relaxed text-[#0F172A]">
+                자세한 활동 내용 및 지원 방법은 원본 공지를 확인해 주세요.
+              </p>
+            </div>
+            <div className="mt-4 space-y-2">
               {source ? <a href={source} target="_blank" rel="noopener noreferrer" className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#7D39EB] px-3 py-3 text-xs font-bold text-white hover:bg-[#6025C5]">원본 공지 바로가기<ExternalLink size={14} /></a>
                 : <p className="rounded-lg border border-[#7D39EB]/15 px-3 py-3 text-xs text-[#64748B]">{demo ? '가상 공고의 원본 링크는 제공하지 않습니다.' : '원본 공지 링크 미제공'}</p>}
               {application && status === 'open' && <a href={application} target="_blank" rel="noopener noreferrer" className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#C6FF33] px-3 py-3 text-xs font-bold text-black">공식 접수 페이지<ArrowUpRight size={14} /></a>}
@@ -55,22 +58,11 @@ export function OpportunityDetail({ opportunity, matches = [], recruitments, det
           </aside>
         </section>
 
-        <div className="grid min-w-0 items-start gap-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-          <section aria-label="상세 정보" className="min-w-0 rounded-2xl border border-[#E2E8F0] bg-white p-5 sm:p-7">
-            <h2 className="mb-6 text-xl font-extrabold text-[#0F172A]">이번 기회, 자세히 살펴보기.</h2>
-            <dl className="space-y-5 text-sm">
-              <div><dt className="mb-2 text-xs font-bold text-[#64748B]">모집 기간</dt><dd className="leading-relaxed text-[#0F172A]">{fullDate(item.applicationStart)} ~ {fullDate(item.deadline)}</dd></div>
-              <div><dt className="mb-2 text-xs font-bold text-[#64748B]">활동 기간</dt><dd>{details?.activityPeriod || '미제공'}</dd></div>
-              <div><dt className="mb-2 text-xs font-bold text-[#64748B]">지원 자격</dt><dd className="whitespace-pre-wrap break-words">{details?.eligibility || '미제공'}</dd></div>
-              <div className="border-t border-[#E2E8F0] pt-5"><dt className="mb-3 text-sm font-bold text-[#0F172A]">주요 활동 내용</dt><dd className="whitespace-pre-wrap break-words leading-7 text-[#64748B]">{item.description || '상세 내용 미제공'}</dd></div>
-            </dl>
-          </section>
-          <section aria-label="추천 이유" className="min-w-0 rounded-2xl border border-[#7D39EB]/15 bg-[#F4EFFE]/50 p-5 sm:p-6">
-            <h2 className="mb-4 text-base font-bold text-[#0F172A]">나에게 맞는 이유</h2>
-            {match ? <Recommendation match={match} demo={demo} /> : <p className="text-sm leading-relaxed text-[#64748B]">아직 제공된 추천 결과가 없어요.</p>}
-            {match?.matchedTags.length ? <div className="mt-4"><Tags tags={match.matchedTags} /></div> : null}
-          </section>
-        </div>
+        <section aria-label="추천 이유" className="min-w-0 rounded-2xl border border-[#7D39EB]/15 bg-[#F4EFFE]/50 p-5 sm:p-7">
+          <h2 className="mb-4 text-base font-bold text-[#0F172A]">나에게 맞는 이유</h2>
+          {match ? <Recommendation match={match} demo={demo} /> : <p className="text-sm leading-relaxed text-[#64748B]">아직 제공된 추천 결과가 없어요.</p>}
+          {match?.matchedTags.length ? <div className="mt-4"><Tags tags={match.matchedTags} /></div> : null}
+        </section>
 
         <section aria-label="관련 팀원 모집글" className="min-w-0 rounded-2xl border border-[#E2E8F0] bg-white p-5 sm:p-7">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><h2 className="text-xl font-extrabold text-[#0F172A]">함께 도전할 팀을 만나보세요.</h2><Link to={`/recruitments/new?opportunityId=${encodeURIComponent(item.id)}`} className="inline-flex min-h-11 items-center gap-2 text-xs font-semibold text-[#7D39EB]">모집글 작성<ArrowUpRight size={15} /></Link></div>

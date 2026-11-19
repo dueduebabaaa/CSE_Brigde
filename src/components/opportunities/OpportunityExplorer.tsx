@@ -4,7 +4,7 @@ import { ArrowUpRight, LayoutGrid, List, Search, SlidersHorizontal } from 'lucid
 import { Button, EmptyState, LoadingState } from '../ui';
 import { ConnectionGraphic } from '../dashboard/DashboardCards';
 import { DemoNotice, OpportunityTile } from './OpportunityUI';
-import { CATEGORIES, DEFAULT_FILTERS, filterOpportunities, isClosing, opportunityStatus, publicOpportunities, readFilters, recommendationMap, STATUS_LABELS } from './opportunityModel';
+import { CATEGORIES, DEFAULT_FILTERS, filterOpportunities, opportunityStatus, publicOpportunities, readFilters, recommendationMap, STATUS_LABELS } from './opportunityModel';
 import type { ExploreFilters, OpportunitySource } from './opportunityModel';
 
 const selectClass = 'mt-1 w-full min-w-0 min-h-11 rounded-lg border border-[#E2E8F0] bg-white px-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#7D39EB]';
@@ -39,7 +39,6 @@ export function OpportunityExplorer({ opportunities, matches = [], loading, erro
   const stats = [
     { label: '모집 중인 공고', count: items.filter((item) => opportunityStatus(item, now) === 'open').length, style: 'bg-white text-[#0F172A] border-[#E2E8F0]', onClick: () => change({ status: 'open' }), disabled: false },
     { label: '추천 공고', count: items.filter((item) => suppliedMatches.has(item.id)).length, style: 'bg-[#7D39EB] text-white border-[#7D39EB]', onClick: () => change({ recommended: true, sort: 'recommended' }), disabled: !hasRecommendations },
-    { label: '마감 임박 공고', count: items.filter((item) => isClosing(item, now)).length, style: 'bg-[#C6FF33] text-black border-[#C6FF33]', onClick: () => change({ closing: true }), disabled: false },
   ];
   return <div className="min-w-0 space-y-5 sm:space-y-7">
     <div>
@@ -55,11 +54,11 @@ export function OpportunityExplorer({ opportunities, matches = [], loading, erro
         </div>
         <div className="pointer-events-none absolute -right-1 top-1/2 w-28 -translate-y-1/2 opacity-90 sm:right-4 sm:w-44"><ConnectionGraphic /></div>
       </div>
-      <div className="grid min-w-0 grid-cols-3 gap-2 sm:gap-3 xl:col-span-6">{stats.map((stat) =>
+      <div className="grid min-w-0 grid-cols-2 gap-2 sm:gap-3 xl:col-span-6">{stats.map((stat) =>
         <button key={stat.label} type="button" disabled={!ready || stat.disabled} onClick={stat.onClick}
           className={`flex min-h-24 min-w-0 flex-col justify-between rounded-xl border p-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#7D39EB] disabled:cursor-default sm:p-5 ${stat.style}`}>
           <span className="flex flex-wrap items-center justify-between gap-1 text-[11px] font-semibold leading-relaxed">{stat.label}<ArrowUpRight size={13} aria-hidden="true" /></span>
-          <span className="mt-3 text-2xl font-bold tabular-nums sm:text-3xl">{ready ? stat.count : '—'}</span>
+          <span className="mt-3 text-2xl font-bold tabular-nums sm:text-3xl">{ready && !stat.disabled ? stat.count : '—'}</span>
         </button>)}</div>
     </section>
 
@@ -69,12 +68,9 @@ export function OpportunityExplorer({ opportunities, matches = [], loading, erro
         <input aria-label="공고 검색" placeholder="제목, 주최 기관, 기술 태그 검색" value={filters.search}
           onChange={(event) => change({ search: event.target.value })} className="min-h-12 w-full min-w-0 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] pl-11 pr-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#7D39EB]" />
       </div>
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-        <label className="inline-flex min-h-11 items-center gap-2 text-xs font-semibold text-[#0F172A]"><input type="checkbox" checked={filters.closing} onChange={(event) => change({ closing: event.target.checked })} className="h-4 w-4 accent-[#7D39EB]" />7일 이내 마감</label>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="ghost" onClick={reset} className="!min-h-11 !text-xs">전체 필터 초기화</Button>
-          <Button variant="secondary" aria-expanded={filtersOpen} aria-controls="opportunity-filters" onClick={() => setFiltersOpen((value) => !value)} className="!min-h-11 sm:!hidden" leftIcon={<SlidersHorizontal size={15} />}>필터</Button>
-        </div>
+      <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+        <Button variant="ghost" onClick={reset} className="!min-h-11 !text-xs">전체 필터 초기화</Button>
+        <Button variant="secondary" aria-expanded={filtersOpen} aria-controls="opportunity-filters" onClick={() => setFiltersOpen((value) => !value)} className="!min-h-11 sm:!hidden" leftIcon={<SlidersHorizontal size={15} />}>필터</Button>
       </div>
       <div id="opportunity-filters" className={`${filtersOpen ? 'grid' : 'hidden'} mt-3 min-w-0 grid-cols-1 gap-3 border-t border-[#E2E8F0] pt-4 sm:grid sm:grid-cols-3`}>
         <label className="min-w-0 text-xs font-semibold text-[#64748B]">활동 유형<select value={filters.category} onChange={(event) => change({ category: event.target.value })} className={selectClass}>
@@ -100,7 +96,7 @@ export function OpportunityExplorer({ opportunities, matches = [], loading, erro
         <div className="flex flex-wrap items-center gap-2">
           <label className="sr-only" htmlFor="opportunity-sort">공고 정렬</label>
           <select id="opportunity-sort" value={filters.sort} onChange={(event) => change({ sort: event.target.value as ExploreFilters['sort'] })} className="min-h-11 rounded-lg border border-[#E2E8F0] bg-white px-2 text-xs text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#7D39EB]">
-            <option value="newest">최신순</option><option value="deadline">마감 임박순</option><option value="recommended" disabled={!hasRecommendations}>추천순</option>
+            <option value="newest">최신순</option><option value="recommended" disabled={!hasRecommendations}>추천순</option>
           </select>
           <div role="group" aria-label="보기 방식" className="flex rounded-lg border border-[#E2E8F0] bg-white">
             <button type="button" aria-label="카드형 보기" aria-pressed={!list} onClick={() => setView('card')} className={`flex h-11 w-11 items-center justify-center rounded-lg ${!list ? 'bg-[#F4EFFE] text-[#7D39EB]' : 'text-[#64748B]'}`}><LayoutGrid size={17} /></button>

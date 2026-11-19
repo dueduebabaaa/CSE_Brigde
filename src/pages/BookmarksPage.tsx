@@ -13,16 +13,15 @@ export const BookmarksPage: React.FC = () => {
         </span>
       </div>
       <p className="text-xs text-[#64748B] -mt-4">
-        관심 등록한 공모전과 대외활동 공고를 한곳에서 확인하고 마감 기한을 관리하세요.
+        관심 등록한 공모전과 대외활동 공고를 한곳에서 확인하세요.
       </p>
 
       <PlaceholderCard
         title="북마크 및 알림 보관함"
-        description="사용자가 저장한 공모전의 마감 임박 알림을 제공하고, 해당 공모전에 대한 신규 팀원 모집글이 등록될 경우 알림을 제공합니다."
+        description="저장한 공고에 신규 팀원 모집글이 등록되면 알림을 제공합니다."
         assignedRole="A (북마크 리스트 UI) + B (Bookmark 테이블 & Supabase 연동)"
         plannedFeatures={[
           '저장한 공모전 카드 목록 및 1-Click 북마크 해제',
-          '마감 임박 공고 우선 정렬 및 D-Day 배지 표시',
           '북마크한 공고 기반 추천 팀원 모집글 실시간 연계',
         ]}
       />

@@ -39,7 +39,7 @@ export function HomeDashboard({ data, profileName, loading = false, error, demo 
   }).slice(0, 3);
   const stats = [
     { label: '모집 중인 공모전', value: summary.open.length, to: '/opportunities', icon: Compass, tone: 'bg-[#7D39EB] text-white border-[#7D39EB]', caption: '새로운 도전의 시작' },
-    { label: '마감 임박 공고', value: summary.closing.length, to: '/opportunities', icon: Clock3, tone: 'bg-[#C6FF33] text-black border-[#C6FF33]', caption: '7일 이내 마감' },
+    { label: '학부 공식 공고', value: summary.official.length, to: '/opportunities', icon: Clock3, tone: 'bg-[#C6FF33] text-black border-[#C6FF33]', caption: '경북대 컴퓨터학부' },
     { label: '팀원 모집 현황', value: summary.recruiting.length, to: '/recruitments', icon: Users, tone: 'bg-white text-[#0F172A] border-[#E2E8F0]', caption: '함께할 동료를 찾는 팀' },
     { label: '내 프로젝트 현황', value: summary.activeTeams.length, to: '/projects', icon: BriefcaseBusiness, tone: 'bg-white text-[#0F172A] border-[#E2E8F0]', caption: '현재 진행 중인 프로젝트' },
   ];
@@ -105,10 +105,10 @@ export function HomeDashboard({ data, profileName, loading = false, error, demo 
             {summary.official.length ? <ul className="[&>li:nth-child(n+3)]:hidden sm:[&>li:nth-child(n+3)]:list-item">{summary.official.slice(0, 3).map((opportunity) => <NoticeRow key={opportunity.id} opportunity={opportunity} now={now} demo={demo} />)}</ul>
               : <EmptyState title="등록된 학부 공고가 없어요" description="새로운 공고가 도착하면 여기에서 확인하세요." />}
           </section>
-          <section aria-label="마감 임박 공고" className="min-w-0 rounded-2xl border border-[#C6FF33]/60 bg-[#F7FEDF] p-5 sm:p-6 xl:col-span-5">
-            <SectionHeading title="기회를 놓치지 않도록." description="마감까지 7일, 지금 확인해 보세요." to="/opportunities" />
-            {summary.closing.length ? <ul>{summary.closing.slice(0, 3).map((opportunity) => <NoticeRow key={opportunity.id} opportunity={opportunity} now={now} demo={demo} closing />)}</ul>
-              : <EmptyState title="서두를 공고가 없어요" description="7일 이내 마감되는 공고를 모아드릴게요." />}
+          <section aria-label="새로운 기회" className="min-w-0 rounded-2xl border border-[#C6FF33]/60 bg-[#F7FEDF] p-5 sm:p-6 xl:col-span-5">
+            <SectionHeading title="새로운 기회를 한눈에." description="관심 있는 공모전을 지금 확인해 보세요." to="/opportunities" />
+            {summary.open.length ? <ul>{summary.open.slice(0, 3).map((opportunity) => <NoticeRow key={opportunity.id} opportunity={opportunity} now={now} demo={demo} />)}</ul>
+              : <EmptyState title="확인할 공고가 없어요" description="새로운 공고가 등록되면 모아드릴게요." />}
           </section>
         </div>
 

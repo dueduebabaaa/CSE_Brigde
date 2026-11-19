@@ -77,8 +77,8 @@ export function readFilters(params: URLSearchParams, hasRecommendations: boolean
   return {
     search: params.get('search') || '', category: CATEGORIES.includes(category as OpportunityCategory) ? category : '',
     tag: params.get('tag') || '', status: Object.keys(STATUS_LABELS).includes(status) ? status : '',
-    closing: params.get('closing') === '1', recommended: hasRecommendations && params.get('recommended') === '1',
-    sort: sort === 'deadline' || (sort === 'recommended' && hasRecommendations) ? sort : 'newest',
+    closing: false, recommended: hasRecommendations && params.get('recommended') === '1',
+    sort: sort === 'recommended' && hasRecommendations ? sort : 'newest',
   };
 }
 
