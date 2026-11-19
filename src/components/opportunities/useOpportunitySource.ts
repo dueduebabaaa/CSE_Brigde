@@ -58,7 +58,8 @@ export function useOpportunitySource(): OpportunitySource {
 
   const matches = useMemo<MatchResult[]>(() => {
     if (!source?.opportunities || !profile || profile.id !== userId || profileStatus !== 'ready') return [];
-    return getRecommendedOpportunitiesForProfile(profile, source.opportunities, { currentDate: source.now });
+    return getRecommendedOpportunitiesForProfile(profile, source.opportunities, { currentDate: source.now })
+      .filter((match) => match.evaluable);
   }, [source, profile, profileStatus, userId]);
 
   const toggle = async (id: string, next: boolean) => {

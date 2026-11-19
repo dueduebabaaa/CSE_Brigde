@@ -244,10 +244,11 @@ describe('프로필-공고 추천 연결기 (getRecommendedOpportunitiesForProfi
       expect(resNull!.score).toBe(resWith!.score);
     });
 
-    it('needs_confirmation 상태의 공고는 확인 전이므로 추천 대상에서 제외된다', () => {
+    it('게시된 needs_confirmation 공고를 마감일이 없어도 후보에 포함한다', () => {
       const oppNeedsConfirm = createOpportunity({
         id: 'opp-needs-confirm',
         status: 'needs_confirmation',
+        deadline: null,
       });
 
       const profile = createServiceProfile();
@@ -255,7 +256,9 @@ describe('프로필-공고 추천 연결기 (getRecommendedOpportunitiesForProfi
         currentDate: referenceDate,
       });
 
-      expect(results).toHaveLength(0);
+      expect(results).toHaveLength(1);
+      expect(results[0].targetId).toBe(oppNeedsConfirm.id);
+      expect(oppNeedsConfirm.status).toBe('needs_confirmation');
     });
 
     it('closed, draft 공고는 추천 대상에서 제외된다', () => {

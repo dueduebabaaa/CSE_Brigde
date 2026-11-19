@@ -4,7 +4,7 @@ import { ArrowUpRight, LayoutGrid, List, Search, SlidersHorizontal } from 'lucid
 import { Button, EmptyState, LoadingState } from '../ui';
 import { ConnectionGraphic } from '../dashboard/DashboardCards';
 import { DemoNotice, OpportunityTile, RecommendationStatus } from './OpportunityUI';
-import { CATEGORIES, DEFAULT_FILTERS, filterOpportunities, opportunityStatus, publicOpportunities, readFilters, recommendationMap, STATUS_LABELS } from './opportunityModel';
+import { CATEGORIES, DEFAULT_FILTERS, evaluationMap, filterOpportunities, opportunityStatus, publicOpportunities, readFilters, recommendationMap, STATUS_LABELS } from './opportunityModel';
 import type { ExploreFilters, OpportunitySource } from './opportunityModel';
 
 const selectClass = 'mt-1 w-full min-w-0 min-h-11 rounded-lg border border-[#E2E8F0] bg-white px-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#7D39EB]';
@@ -15,6 +15,7 @@ export function OpportunityExplorer({ opportunities, matches = [], loading, erro
   const [filtersOpen, setFiltersOpen] = useState(false);
   const items = publicOpportunities(opportunities || [], now);
   const suppliedMatches = recommendationMap(matches);
+  const evaluations = evaluationMap(matches);
   const hasRecommendations = items.some((item) => suppliedMatches.has(item.id));
   const filters = readFilters(params, hasRecommendations, hasRecommendations || profileStatus !== undefined);
   const results = filterOpportunities(items, filters, matches, now);
@@ -111,7 +112,7 @@ export function OpportunityExplorer({ opportunities, matches = [], loading, erro
         : !items.length ? <EmptyState title="아직 등록된 공고가 없어요" description="새로운 기회가 준비되면 여기에서 확인하세요." />
         : !results.length ? <EmptyState title={filters.recommended && !hasRecommendations ? '표시할 추천 공고가 없어요' : '검색 결과가 없어요'} description="다른 검색어나 필터로 새로운 기회를 찾아보세요." action={{ label: '전체 필터 초기화', onClick: reset }} />
         : <div className={`grid min-w-0 ${list ? 'grid-cols-1 gap-4' : 'grid-cols-1 gap-3 min-[360px]:grid-cols-2 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3'}`}>
-          {results.map((opportunity) => <OpportunityTile key={opportunity.id} opportunity={opportunity} match={suppliedMatches.get(opportunity.id)} now={now} demo={demo} list={list}
+          {results.map((opportunity) => <OpportunityTile key={opportunity.id} opportunity={opportunity} match={evaluations.get(opportunity.id)} now={now} demo={demo} list={list}
             listSearch={params.toString() ? `?${params}` : ''} saved={bookmarkIds.includes(opportunity.id)} onBookmark={onBookmark} />)}
         </div>}
     </section>

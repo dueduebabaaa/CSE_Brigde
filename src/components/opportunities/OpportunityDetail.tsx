@@ -4,7 +4,7 @@ import { Badge, Button, EmptyState, LoadingState, SkillTag } from '../ui';
 import { Tags } from '../dashboard/DashboardCards';
 import { displayTitle, safeExternalUrl } from '../dashboard/dashboardModel';
 import { BookmarkButton, DemoNotice, OpportunityGraphic, Recommendation, RecommendationStatus } from './OpportunityUI';
-import { fullDate, opportunityStatus, publicOpportunities, recommendationMap, STATUS_LABELS } from './opportunityModel';
+import { fullDate, opportunityStatus, publicOpportunities, evaluationMap, STATUS_LABELS } from './opportunityModel';
 import type { OpportunitySource } from './opportunityModel';
 import type { Opportunity } from '../../types';
 
@@ -18,7 +18,7 @@ export interface OpportunityDetailProps extends Omit<OpportunitySource, 'opportu
 export function OpportunityDetail({ opportunity, matches = [], recruitments, details: _details, backTo = '/opportunities', loading, error,
   onRetry, demo = false, now = new Date(), bookmarkIds = [], onBookmark, profileStatus, onProfileRetry }: OpportunityDetailProps) {
   const item = opportunity && publicOpportunities([opportunity], now).length ? opportunity : null;
-  const match = item ? recommendationMap(matches).get(item.id) : undefined;
+  const match = item ? evaluationMap(matches).get(item.id) : undefined;
   const status = item ? opportunityStatus(item, now) : 'unknown';
   const source = demo ? undefined : safeExternalUrl(item?.sourceUrl);
   const application = demo ? undefined : safeExternalUrl(item?.applicationUrl);

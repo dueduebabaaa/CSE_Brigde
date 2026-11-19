@@ -40,13 +40,17 @@ export function isClosing(item: Opportunity, now: Date): boolean {
   const days = daysUntil(item.deadline, now);
   return opportunityStatus(item, now) === 'open' && days !== null && days >= 0 && days <= 7;
 }
-export function recommendationMap(matches: MatchResult[] = []): Map<string, MatchResult> {
+export function evaluationMap(matches: MatchResult[] = []): Map<string, MatchResult> {
   return new Map(matches.filter((match) => Number.isFinite(match.score) && match.score >= 0 && match.score <= 100)
     .map((match) => [match.targetId, {
       ...match,
       reasons: (match.reasons ?? []).filter((reason) => reason.trim()),
       matchedTags: match.matchedTags ?? [],
     }]));
+}
+
+export function recommendationMap(matches: MatchResult[] = []): Map<string, MatchResult> {
+  return evaluationMap(matches.filter((match) => match.score > 0));
 }
 
 export function filterOpportunities(items: Opportunity[], filters: ExploreFilters, matches: MatchResult[], now: Date): Opportunity[] {
