@@ -4,6 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
+import { getCategory, getMatchedNoticeTypes, isTargetNotice } from "./notice-filter.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,47 +25,6 @@ if (!supabaseUrl || !supabaseKey) {
 }
 
 const supabase = createClient(supabaseUrl, supabaseKey);
-
-const INCLUDE_KEYWORDS = [
-    "공모전", "대외활동", "해커톤", "경진대회", "서포터즈",
-    "아이디어톤", "챌린지", "부트캠프", "특강", "산학협력",
-];
-
-const EXCLUDE_KEYWORDS = [
-    "등록금", "수강신청", "전과", "휴학", "복학",
-    "성적", "졸업사정", "장바구니", "교직", "예비군",
-];
-
-function getCategory(title) {
-    if (title.includes("해커톤")) return "해커톤";
-    if (title.includes("경진대회")) return "경진대회";
-    if (title.includes("서포터즈")) return "서포터즈";
-
-    if (
-        title.includes("공모전") ||
-        title.includes("아이디어톤") ||
-        title.includes("챌린지")
-    ) return "공모전";
-
-    if (
-        title.includes("대외활동") ||
-        title.includes("산학협력")
-    ) return "대외활동";
-
-    return "교육/특강";
-}
-
-function isTargetNotice(notice) {
-    const title = notice.title || "";
-    const content = notice.content || "";
-    const text = `${title} ${content}`;
-
-    if (EXCLUDE_KEYWORDS.some((word) => title.includes(word))) {
-        return false;
-    }
-
-    return INCLUDE_KEYWORDS.some((word) => text.includes(word));
-}
 
 function makeSummary(content) {
     if (!content) {
@@ -136,11 +96,9 @@ function convertNotice(notice) {
 
     return {
         title: notice.title,
-        description: makeSummary(notice.content),
-        category: getCategory(notice.title),
-        tags: INCLUDE_KEYWORDS.filter((word) =>
-            `${notice.title} ${notice.content || ""}`.includes(word)
-        ),
+        description: notice.content?.trim() || makeSummary(notice.content),
+        category: getCategory(notice.title, notice.content),
+        tags: getMatchedNoticeTypes(notice),
         organizer: "경북대학교 컴퓨터학부",
         posted_at: notice.created_at
             ? new Date(`${notice.created_at}T00:00:00+09:00`).toISOString()
