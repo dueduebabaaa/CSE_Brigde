@@ -7,6 +7,8 @@ import { OpportunityCard } from './DashboardCards';
 import { demoDashboard, DEMO_NOW } from './dashboardDemo';
 import { deadlineLabel, EMPTY_DASHBOARD, safeExternalUrl, summarizeDashboard } from './dashboardModel';
 
+vi.mock('../../services/opportunityService', () => ({ fetchOpportunities: vi.fn() }));
+
 const now = new Date(DEMO_NOW);
 afterEach(cleanup);
 

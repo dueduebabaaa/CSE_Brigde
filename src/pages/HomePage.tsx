@@ -1,5 +1,7 @@
 import { useMyProfile } from '../contexts/MyProfileContext';
-import { useEffect, useState } from 'react';
+import { useSharedOpportunitySource } from '../components/opportunities/OpportunitySourceLayout';
+import { RecommendationStatus } from '../components/opportunities/OpportunityUI';
+import { publicOpportunities, recommendationMap, type OpportunitySource } from '../components/opportunities/opportunityModel';
 import { Link } from 'react-router-dom';
 import { ArrowUpRight, BriefcaseBusiness, Clock3, Compass, Users } from 'lucide-react';
 import { Button, EmptyState, LoadingState } from '../components/ui';
@@ -7,10 +9,10 @@ import {
   CollaborationLinks, ConnectionGraphic, MemberCard, NoticeRow, OpportunityCard,
   RecruitmentCard, SectionHeading, dashboardLink,
 } from '../components/dashboard/DashboardCards';
-import { EMPTY_DASHBOARD, formatDate, isOpen, summarizeDashboard } from '../components/dashboard/dashboardModel';
+import { EMPTY_DASHBOARD, formatDate, summarizeDashboard } from '../components/dashboard/dashboardModel';
 import type { DashboardData } from '../components/dashboard/dashboardModel';
 
-export interface HomeDashboardProps {
+export interface HomeDashboardProps extends Pick<OpportunitySource, 'profileStatus' | 'onProfileRetry'> {
   data?: DashboardData;
   profileName?: string | null;
   loading?: boolean;
@@ -24,24 +26,27 @@ export interface HomeDashboardProps {
 }
 
 export function HomeDashboard({ data, profileName, loading = false, error, demo = false,
-  now = new Date(), bookmarkIds = [], onBookmark, onRetry }: HomeDashboardProps) {
+  now = new Date(), bookmarkIds = [], onBookmark, onRetry, profileStatus, onProfileRetry }: HomeDashboardProps) {
   const records = data || EMPTY_DASHBOARD;
   const summary = summarizeDashboard(records, now);
   const available = Boolean(data) && !loading && !error;
-  // Preserve C's supplied order and scores; no matching algorithm here.
-  const recommendations = records.opportunityMatches.flatMap((match) => {
-    const opportunity = records.opportunities.find((item) => item.id === match.targetId);
-    return opportunity && isOpen(opportunity, now) ? [{ opportunity, match }] : [];
-  }).slice(0, 3);
+  const opportunities = new Map(publicOpportunities(records.opportunities, now).map((item) => [item.id, item]));
+  const recommendations = [...recommendationMap(records.opportunityMatches).values()].flatMap((match) => {
+    const opportunity = opportunities.get(match.targetId);
+    return opportunity ? [{ opportunity, match }] : [];
+  });
   const members = records.memberMatches.flatMap((match) => {
     const member = records.members.find((item) => item.id === match.targetId && item.isPublic);
     return member ? [{ member, match }] : [];
   }).slice(0, 3);
   const stats = [
-    { label: '모집 중인 공모전', value: summary.open.length, to: '/opportunities', icon: Compass, tone: 'bg-[#7D39EB] text-white border-[#7D39EB]', caption: '새로운 도전의 시작' },
+    { label: profileStatus === undefined ? '모집 중인 공모전' : '공개 공고', value: profileStatus === undefined ? summary.open.length : opportunities.size, to: '/opportunities', icon: Compass, tone: 'bg-[#7D39EB] text-white border-[#7D39EB]', caption: '새로운 도전의 시작' },
     { label: '학부 공식 공고', value: summary.official.length, to: '/opportunities', icon: Clock3, tone: 'bg-[#C6FF33] text-black border-[#C6FF33]', caption: '경북대 컴퓨터학부' },
-    { label: '팀원 모집 현황', value: summary.recruiting.length, to: '/recruitments', icon: Users, tone: 'bg-white text-[#0F172A] border-[#E2E8F0]', caption: '함께할 동료를 찾는 팀' },
-    { label: '내 프로젝트 현황', value: summary.activeTeams.length, to: '/projects', icon: BriefcaseBusiness, tone: 'bg-white text-[#0F172A] border-[#E2E8F0]', caption: '현재 진행 중인 프로젝트' },
+    { label: profileStatus === undefined ? '팀원 모집 현황' : '추천 공고',
+      value: profileStatus === undefined ? summary.recruiting.length : profileStatus === 'ready' ? recommendations.length : null,
+      to: profileStatus === undefined ? '/recruitments' : '/opportunities?recommended=1&sort=recommended',
+      icon: Users, tone: 'bg-white text-[#0F172A] border-[#E2E8F0]', caption: profileStatus === undefined ? '함께할 동료를 찾는 팀' : '내 프로필 기반' },
+    { label: '내 프로젝트 현황', value: profileStatus === undefined ? summary.activeTeams.length : null, to: '/projects', icon: BriefcaseBusiness, tone: 'bg-white text-[#0F172A] border-[#E2E8F0]', caption: '현재 진행 중인 프로젝트' },
   ];
   return <div className="min-w-0 space-y-5 pb-4 sm:space-y-11 [&_a]:break-words">
     <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-1.5 sm:gap-3">
@@ -78,9 +83,9 @@ export function HomeDashboard({ data, profileName, loading = false, error, demo 
         </div>
       </div>
       <div className="grid min-w-0 grid-cols-2 gap-3 sm:gap-4 xl:col-span-4">
-        {stats.map((stat) => <Link key={stat.label} to={stat.to} aria-label={stat.label + ': ' + (available ? stat.value : '확인 대기')} className={'group flex min-w-0 flex-col justify-between rounded-2xl border p-3 transition-shadow hover:shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#7D39EB] sm:p-5 ' + stat.tone}>
+        {stats.map((stat) => <Link key={stat.label} to={stat.to} aria-label={stat.label + ': ' + ((available ? stat.value : null) ?? '확인 대기')} className={'group flex min-w-0 flex-col justify-between rounded-2xl border p-3 transition-shadow hover:shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#7D39EB] sm:p-5 ' + stat.tone}>
           <div className="flex items-center justify-between gap-2"><stat.icon size={18} aria-hidden="true" /><ArrowUpRight size={14} aria-hidden="true" className="opacity-60" /></div>
-          <div className="mt-2 sm:mt-5"><span className="text-3xl font-bold leading-none tracking-tight tabular-nums sm:text-4xl sm:leading-none">{available ? stat.value : '—'}</span>
+          <div className="mt-2 sm:mt-5"><span className="text-3xl font-bold leading-none tracking-tight tabular-nums sm:text-4xl sm:leading-none">{(available ? stat.value : null) ?? '—'}</span>
             <p className="mt-1 text-xs font-bold leading-relaxed break-keep sm:mt-2">{stat.label}</p>
             <p className="mt-1 hidden text-[10px] leading-relaxed opacity-75 sm:block">{stat.caption}</p></div>
         </Link>)}
@@ -94,8 +99,13 @@ export function HomeDashboard({ data, profileName, loading = false, error, demo 
           <SectionHeading title="나에게 맞는 공모전" description="관심에서 시작해, 다음 도전으로." to="/opportunities" action="전체 공모전 보기" />
           {!onBookmark && <p className="mb-3 text-xs text-[#64748B]">북마크는 저장 기능 연결 후 사용할 수 있어요.</p>}
           {recommendations.length ? <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 [&>article:nth-child(n+3)]:hidden sm:[&>article:nth-child(n+3)]:flex">
-            {recommendations.map(({ opportunity, match }, index) => <OpportunityCard key={opportunity.id} opportunity={opportunity} match={match} now={now} demo={demo} featured={index === 0} bookmarked={bookmarkIds.includes(opportunity.id)} onBookmark={onBookmark} />)}
-          </div> : <div className="rounded-2xl border border-dashed border-[#CBD5E1] bg-white"><EmptyState title="다음 도전을 기다리고 있어요" description={data ? '추천 공모전이 준비되면 여기에 모아드릴게요.' : '아직 공고 데이터를 불러올 수 없어요. 새로운 기회가 준비되면 확인해 보세요.'} icon={<Compass size={22} />} /></div>}
+            {recommendations.slice(0, 3).map(({ opportunity, match }, index) => <OpportunityCard key={opportunity.id} opportunity={opportunity} match={match} now={now} demo={demo} featured={index === 0} bookmarked={bookmarkIds.includes(opportunity.id)} onBookmark={onBookmark} />)}
+          </div> : <div className="rounded-2xl border border-dashed border-[#CBD5E1] bg-white">
+            {data && !opportunities.size
+              ? <EmptyState title="공개된 공고가 없어요" icon={<Compass size={22} />} />
+              : profileStatus ? <div className="p-5"><RecommendationStatus profileStatus={profileStatus} onProfileRetry={onProfileRetry} /></div>
+              : <EmptyState title="다음 도전을 기다리고 있어요" description={data ? '추천 공모전이 준비되면 여기에 모아드릴게요.' : '아직 공고 데이터를 불러올 수 없어요. 새로운 기회가 준비되면 확인해 보세요.'} icon={<Compass size={22} />} />}
+          </div>}
         </section>
 
         <div className="grid min-w-0 grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-12">
@@ -133,32 +143,14 @@ export function HomeDashboard({ data, profileName, loading = false, error, demo 
   </div>;
 }
 
-// Replace the DEV source with B's query state, profile and bookmark actions,
-// and C's supplied MatchResult records. Production defaults to empty states.
 export function HomePage() {
   const { profile } = useMyProfile();
   const profileName = profile?.nickname?.trim() || profile?.name?.trim() || null;
-  const [data, setData] = useState<DashboardData>();
-  const [bookmarks, setBookmarks] = useState<string[]>([]);
-  const [demoNow, setDemoNow] = useState<Date>();
-  const [loading, setLoading] = useState(Boolean(import.meta.env.DEV));
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    if (!import.meta.env.DEV) return;
-    let active = true;
-    import('../components/dashboard/dashboardDemo').then((fixture) => {
-      if (!active) return;
-      setData(fixture.demoDashboard);
-      setBookmarks(fixture.demoBookmarkIds);
-      setDemoNow(new Date(fixture.DEMO_NOW));
-      setLoading(false);
-    }).catch(() => { if (active) { setError('demo-load-failed'); setLoading(false); } });
-    return () => { active = false; };
-  }, []);
-  const toggleDemoBookmark = async (id: string, next: boolean) => {
-    if (!import.meta.env.DEV) return;
-    setBookmarks((previous) => next ? [...new Set([...previous, id])] : previous.filter((item) => item !== id));
+  const source = useSharedOpportunitySource();
+  const data = source.opportunities && {
+    ...EMPTY_DASHBOARD,
+    opportunities: source.opportunities,
+    opportunityMatches: source.matches ?? [],
   };
-  return <HomeDashboard profileName={profileName} data={data} demo={Boolean(import.meta.env.DEV)} now={demoNow} loading={loading} error={error}
-    bookmarkIds={bookmarks} onBookmark={import.meta.env.DEV ? toggleDemoBookmark : undefined} />;
+  return <HomeDashboard {...source} profileName={profileName} data={data} />;
 }

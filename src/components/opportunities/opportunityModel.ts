@@ -1,4 +1,5 @@
 import type { MatchResult, Opportunity, OpportunityCategory, Recruitment } from '../../types';
+import type { Snapshot } from '../../contexts/MyProfileContext';
 import { daysUntil } from '../dashboard/dashboardModel';
 
 export const CATEGORIES: OpportunityCategory[] = ['해커톤', '공모전', '경진대회', '대외활동', '서포터즈', '교육/특강'];
@@ -13,6 +14,8 @@ export const DEFAULT_FILTERS: ExploreFilters = { search: '', category: '', tag: 
 export interface OpportunitySource {
   opportunities?: Opportunity[];
   matches?: MatchResult[];
+  profileStatus?: Snapshot['status'];
+  onProfileRetry?: () => void;
   recruitments?: Recruitment[];
   loading?: boolean;
   error?: string | null;
@@ -39,7 +42,11 @@ export function isClosing(item: Opportunity, now: Date): boolean {
 }
 export function recommendationMap(matches: MatchResult[] = []): Map<string, MatchResult> {
   return new Map(matches.filter((match) => Number.isFinite(match.score) && match.score >= 0 && match.score <= 100)
-    .map((match) => [match.targetId, match]));
+    .map((match) => [match.targetId, {
+      ...match,
+      reasons: (match.reasons ?? []).filter((reason) => reason.trim()),
+      matchedTags: match.matchedTags ?? [],
+    }]));
 }
 
 export function filterOpportunities(items: Opportunity[], filters: ExploreFilters, matches: MatchResult[], now: Date): Opportunity[] {
@@ -70,14 +77,14 @@ export function filterOpportunities(items: Opportunity[], filters: ExploreFilter
   });
 }
 
-export function readFilters(params: URLSearchParams, hasRecommendations: boolean): ExploreFilters {
+export function readFilters(params: URLSearchParams, hasRecommendations: boolean, keepRecommendedFilter = hasRecommendations): ExploreFilters {
   const category = params.get('category') || '';
   const status = params.get('status') || '';
   const sort = params.get('sort');
   return {
     search: params.get('search') || '', category: CATEGORIES.includes(category as OpportunityCategory) ? category : '',
     tag: params.get('tag') || '', status: Object.keys(STATUS_LABELS).includes(status) ? status : '',
-    closing: false, recommended: hasRecommendations && params.get('recommended') === '1',
+    closing: false, recommended: keepRecommendedFilter && params.get('recommended') === '1',
     sort: sort === 'recommended' && hasRecommendations ? sort : 'newest',
   };
 }

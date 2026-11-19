@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
@@ -68,10 +68,12 @@ describe('AppLayout 인증 및 회원 분기', () => {
   });
 
   it('프로필 조회 실패를 신규 회원으로 처리하지 않는다', async () => {
-    appMocks.fetchMyProfile.mockRejectedValueOnce(new Error('read failed'));
+    appMocks.fetchMyProfile.mockRejectedValueOnce(new Error('read failed')).mockResolvedValueOnce({ complete: true });
     renderRoutes('/');
     await waitFor(() => expect(screen.queryByText('프로필 상태를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.')).not.toBeNull());
     expect(screen.queryByText('ONBOARDING_BODY')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '다시 시도' }));
+    expect(await screen.findByText('HOME_BODY')).toBeTruthy();
   });
 
   it('관리자 화면 경로를 일반 사용자에게 허용하지 않는다', async () => {
