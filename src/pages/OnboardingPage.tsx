@@ -90,7 +90,6 @@ interface OnboardingFormState {
   // Step 1
   name: string;
   nickname: string;
-  avatarColor: string;
   grade: string;
   department: string;
   track: string;
@@ -149,7 +148,6 @@ export const OnboardingPage: React.FC = () => {
   const [form, setForm] = useState<OnboardingFormState>({
     name: '',
     nickname: '',
-    avatarColor: 'bg-[#7D39EB]',
     grade: '',
     department: '경북대학교 컴퓨터학부',
     track: '',
@@ -597,8 +595,7 @@ export const OnboardingPage: React.FC = () => {
           ───────────────────────────────────────────────────── */}
           {currentStep === 1 && (
             <div className="bg-[#0B0C10] border border-[#1E1E2A] rounded-2xl p-6 sm:p-8 space-y-6">
-              {/* 프로필 아바타 & 색상 */}
-              <div className="flex flex-col sm:flex-row sm:items-center gap-4 pb-6 border-b border-[#1E1E2A]">
+              <div className="flex items-center gap-3 pb-4 border-b border-[#1E1E2A]">
                 {googleAvatarUrl && failedAvatarUrl !== googleAvatarUrl ? (
                   <img
                     src={googleAvatarUrl}
@@ -612,7 +609,7 @@ export const OnboardingPage: React.FC = () => {
                 ) : (
                   <div
                     aria-label="기본 프로필 아바타"
-                    className={`w-16 h-16 rounded-2xl ${form.avatarColor} flex items-center justify-center text-white font-black text-2xl shadow-sm shrink-0`}
+                    className="w-16 h-16 rounded-2xl bg-[#7D39EB] flex items-center justify-center text-white font-black text-2xl shadow-sm shrink-0"
                   >
                     {(form.name.trim() || googleName.trim()) ? (
                       (form.name.trim() || googleName.trim()).charAt(0)
@@ -621,25 +618,7 @@ export const OnboardingPage: React.FC = () => {
                     )}
                   </div>
                 )}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-[#E2E8F0] block">
-                    프로필 아바타 테마 색상
-                  </label>
-                  <div className="flex items-center gap-2">
-                    {['bg-[#7D39EB]', 'bg-blue-600', 'bg-emerald-600', 'bg-rose-600', 'bg-amber-600', 'bg-indigo-600'].map((color) => (
-                      <button
-                        key={color}
-                        type="button"
-                        onClick={() => setForm((prev) => ({ ...prev, avatarColor: color }))}
-                        className={`w-6 h-6 rounded-full ${color} transition-transform ${form.avatarColor === color ? 'ring-2 ring-white scale-110' : 'opacity-70 hover:opacity-100'
-                          }`}
-                      />
-                    ))}
-                  </div>
-                  <span className="text-[11px] text-[#94A3B8] block">
-                    * 상세 사진 업로드는 마이페이지에서 추후 지원됩니다.
-                  </span>
-                </div>
+                <p className="text-xs font-semibold text-[#E2E8F0]">프로필 이미지</p>
               </div>
 
               {/* 이름 & 닉네임 */}
