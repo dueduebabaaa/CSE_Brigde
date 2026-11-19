@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { UserProfile } from '../services/profileService';
-import { toAlgorithmProfile } from './profileAlgorithmAdapter';
+import type { PublicProfile, UserProfile } from '../services/profileService';
+import { publicProfileToAlgorithmProfile, toAlgorithmProfile } from './profileAlgorithmAdapter';
+import { calculateMemberMatch } from '../algorithms/memberMatching';
 
 const profile = (overrides: Partial<UserProfile> = {}): UserProfile => ({
   id: 'user-1',
@@ -78,5 +79,66 @@ describe('toAlgorithmProfile', () => {
     const result = toAlgorithmProfile(profile({ tech_proficiency: { React: null } }));
     expect(result).not.toHaveProperty('tech_proficiency');
     expect(result).not.toHaveProperty('techProficiency');
+  });
+});
+
+describe('publicProfileToAlgorithmProfile', () => {
+  const publicProf = (overrides: Partial<PublicProfile> = {}): PublicProfile => {
+    const full = profile();
+    const { email: _email, ...rest } = full;
+    return {
+      ...rest,
+      ...overrides,
+    };
+  };
+
+  it('이메일 필드가 없는 공개 프로필을 알고리즘 UserProfile로 안전하게 변환한다', () => {
+    const pub = publicProf({
+      name: '김공개',
+      desired_roles: ['Frontend Developer'],
+      tech_stacks: ['React', 'TypeScript'],
+      visibility: 'public',
+      is_public: true,
+    });
+    const result = publicProfileToAlgorithmProfile(pub);
+
+    expect(result.id).toBe('user-1');
+    expect(result.name).toBe('김공개');
+    expect(result.email).toBe('');
+    expect(result.techStacks).toEqual(['React', 'TypeScript']);
+    expect(result.desiredRoles).toEqual(['Frontend Developer']);
+    expect(result.isPublic).toBe(true);
+  });
+
+  it('변환된 프로필이 C의 memberMatching 알고리즘 입력으로 정상 작동한다', () => {
+    const pub = publicProf({
+      id: 'candidate-1',
+      name: '후보학생',
+      desired_roles: ['Frontend Developer'],
+      tech_stacks: ['React', 'TypeScript'],
+      visibility: 'public',
+      is_public: true,
+    });
+    const algorithmProfile = publicProfileToAlgorithmProfile(pub);
+
+    const matches = calculateMemberMatch(
+      {
+        desiredRoles: ['Frontend Developer'],
+        requiredTechStacks: ['React'],
+      },
+      [],
+      [
+        {
+          profile: algorithmProfile,
+          availability: [],
+        },
+      ]
+    );
+
+    expect(matches).toHaveLength(1);
+    expect(matches[0].userId).toBe('candidate-1');
+    expect(matches[0].roleMatch).toBe(true);
+    expect(matches[0].matchedTechStacks).toContain('React');
+    expect(matches[0].score).toBeGreaterThan(0);
   });
 });
