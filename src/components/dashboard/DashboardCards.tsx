@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, ArrowUpRight, Bookmark, ExternalLink, Sparkles } from 'lucide-react';
 import { Avatar, Badge, Button, SkillTag } from '../ui';
 import type { MatchResult, Opportunity, Recruitment } from '../../types';
-import { deadlineLabel, displayTitle, formatDate, safeExternalUrl } from './dashboardModel';
+import { displayTitle, formatDate, safeExternalUrl } from './dashboardModel';
 import type { DashboardMember } from './dashboardModel';
 
 export const dashboardLink = 'inline-flex min-h-11 items-center gap-2 text-xs font-semibold text-[#64748B] hover:text-[#7D39EB] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#7D39EB] rounded-lg';
@@ -27,8 +27,8 @@ export function Tags({ tags }: { tags: string[] }) {
   </div>;
 }
 
-export function OpportunityCard({ opportunity, match, now, demo, featured, bookmarked, onBookmark }: {
-  opportunity: Opportunity; match: MatchResult; now: Date; demo: boolean; featured?: boolean;
+export function OpportunityCard({ opportunity, match, now: _now, demo, featured, bookmarked, onBookmark }: {
+  opportunity: Opportunity; match: MatchResult; now?: Date; demo: boolean; featured?: boolean;
   bookmarked: boolean; onBookmark?: (id: string, next: boolean) => Promise<void>;
 }) {
   const [saving, setSaving] = useState(false);
@@ -52,13 +52,9 @@ export function OpportunityCard({ opportunity, match, now, demo, featured, bookm
       </Button>
     </div>
     <p className="mb-2 text-[11px] font-medium text-[#64748B] break-words">{opportunity.organizer}</p>
-    <h3 className="text-lg font-bold leading-snug tracking-tight text-[#0F172A] break-words">
+    <h3 className="mb-4 text-lg font-bold leading-snug tracking-tight text-[#0F172A] break-words">
       <Link to={`/opportunities/${opportunity.id}`} className="hover:text-[#7D39EB] focus-visible:outline focus-visible:outline-[#7D39EB]">{title}</Link>
     </h3>
-    <div className="mb-5 mt-4 flex flex-wrap items-center gap-2 text-xs">
-      <span className="font-bold text-[#7D39EB]">{deadlineLabel(opportunity.deadline, now)}</span>
-      <span className="text-[#64748B]">{opportunity.deadline ? `${formatDate(opportunity.deadline)} 마감` : '마감일 확인 중'}</span>
-    </div>
     <Tags tags={opportunity.tags} />
     <div className="mt-6 flex-1 border-t border-[#0F172A]/10 pt-4">
       <div className="flex flex-wrap items-center gap-1.5 text-xs font-bold text-[#7D39EB]">
@@ -71,15 +67,14 @@ export function OpportunityCard({ opportunity, match, now, demo, featured, bookm
   </article>;
 }
 
-export function NoticeRow({ opportunity, now, demo, closing = false }: {
-  opportunity: Opportunity; now: Date; demo: boolean; closing?: boolean;
+export function NoticeRow({ opportunity, now: _now, demo }: {
+  opportunity: Opportunity; now?: Date; demo: boolean; closing?: boolean;
 }) {
   // Fixture URLs are invented examples, so external links are intentionally disabled in demo.
   const source = demo ? undefined : safeExternalUrl(opportunity.sourceUrl);
   return <li className="min-w-0 border-b border-[#E2E8F0] py-4 last:border-0">
     <div className="flex flex-wrap items-center gap-2 text-[11px] text-[#64748B]">
       <span>{opportunity.category}</span>
-      {closing && <span className="rounded-md bg-[#C6FF33] px-2 py-0.5 font-bold text-black">{deadlineLabel(opportunity.deadline, now)}</span>}
     </div>
     <Link to={`/opportunities/${opportunity.id}`} className="group flex min-h-11 items-center justify-between gap-3 py-2 text-sm font-bold leading-relaxed text-[#0F172A] hover:text-[#7D39EB]">
       <span className="break-words min-w-0">{displayTitle(opportunity.title, demo)}</span>
@@ -87,7 +82,6 @@ export function NoticeRow({ opportunity, now, demo, closing = false }: {
     </Link>
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[#64748B]">
       <span>등록 {formatDate(opportunity.postedAt)}</span>
-      <span>마감 {formatDate(opportunity.deadline)}</span>
       {source ? <a href={source} target="_blank" rel="noopener noreferrer" className={`${dashboardLink} !text-[11px]`}>원본 공지<ExternalLink size={12} aria-hidden="true" /></a>
         : !demo && <span className="py-2">원본 링크 미등록</span>}
     </div>

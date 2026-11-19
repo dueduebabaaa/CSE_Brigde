@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowUpRight, Bookmark, Sparkles } from 'lucide-react';
 import { Badge, Button } from '../ui';
 import { Tags } from '../dashboard/DashboardCards';
-import { deadlineLabel, displayTitle, formatDate } from '../dashboard/dashboardModel';
+import { displayTitle, formatDate } from '../dashboard/dashboardModel';
 import type { MatchResult, Opportunity, OpportunityCategory } from '../../types';
 import { opportunityStatus, STATUS_LABELS } from './opportunityModel';
 
@@ -84,10 +84,6 @@ export function OpportunityTile({ opportunity, match, now, demo = false, list = 
         {opportunity.tags.slice(0, 2).map((tag) => <span key={tag} className="min-w-0 truncate rounded border border-[#E2E8F0] bg-[#F1F5F9] px-1 py-0.5 text-[10px] text-[#0F172A]" title={tag}>{tag}</span>)}
         {opportunity.tags.length > 2 && <span className="shrink-0 text-[10px] text-[#64748B]">+{opportunity.tags.length - 2}</span>}
       </div>
-      <div className="mt-2 border-t border-[#E2E8F0] pt-2">
-        <p className="text-xs font-bold leading-5 text-[#7D39EB]">{status === 'closed' ? '모집 마감' : deadlineLabel(opportunity.deadline, now)}</p>
-        <p className="text-[10px] leading-4 text-[#64748B]">{opportunity.deadline ? `${formatDate(opportunity.deadline)} 마감` : '마감일 미정'}</p>
-      </div>
       <p className="mt-2 min-h-4 text-[10px] font-semibold leading-4 text-[#7D39EB]">{match ? `${demo ? '예시 적합도' : '추천 적합도'} ${Math.round(match.score)}%` : '\u00a0'}</p>
     </div>}
     <div className={`${list ? 'flex' : 'hidden sm:flex'} min-w-0 flex-1 flex-col`}>
@@ -100,8 +96,7 @@ export function OpportunityTile({ opportunity, match, now, demo = false, list = 
       <p className="mb-3 text-xs leading-relaxed text-[#64748B] break-words">{opportunity.organizer || '주최 기관 미제공'}</p>
       <Tags tags={opportunity.tags} />
       <div className="mt-4 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-[#64748B]">
-        <span>등록 {formatDate(opportunity.postedAt)}</span><span>마감 {opportunity.deadline ? formatDate(opportunity.deadline) : '미정'}</span>
-        <span className="font-bold text-[#7D39EB]">{status === 'closed' ? '모집 마감' : deadlineLabel(opportunity.deadline, now)}</span>
+        <span>등록 {formatDate(opportunity.postedAt)}</span>
       </div>
       {match && <div className="mt-4 border-t border-[#E2E8F0] pt-4"><Recommendation match={match} demo={demo} /></div>}
       <Link to={to} className="mt-auto flex min-h-11 items-center justify-between gap-2 pt-3 text-xs font-semibold text-[#0F172A] hover:text-[#7D39EB]">상세 보기<ArrowUpRight size={16} aria-hidden="true" /></Link>
