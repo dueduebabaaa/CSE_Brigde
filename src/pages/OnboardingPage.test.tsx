@@ -63,9 +63,11 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe('온보딩 입력과 단계 검증', () => {
-  it('Google 이미지 로딩 실패 시 이름 첫 글자와 선택 테마로 대체한다', async () => {
+  it('Google 이미지를 표시하고 로딩 실패 시 이름 첫 글자의 기본 아바타로 대체한다', async () => {
     profileMocks.user.user_metadata = { avatar_url: 'https://example.test/photo.jpg', full_name: '김학생' };
     render(<MemoryRouter><OnboardingPage /></MemoryRouter>);
+    expect(screen.getByText('프로필 이미지')).toBeTruthy();
+    expect(screen.queryByText(/프로필 아바타 테마 색상|상세 사진 업로드/)).toBeNull();
     const image = screen.getByRole('img', { name: '김학생' });
     expect(image.getAttribute('src')).toBe('https://example.test/photo.jpg');
     expect(image.getAttribute('referrerpolicy')).toBe('no-referrer');
@@ -75,9 +77,6 @@ describe('온보딩 입력과 단계 검증', () => {
     const fallback = screen.getByLabelText('기본 프로필 아바타');
     expect(fallback.textContent).toBe('김');
     expect(fallback.className).toContain('bg-[#7D39EB]');
-    const colorButton = Array.from(document.querySelectorAll('button')).find(button => button.classList.contains('bg-blue-600'))!;
-    fireEvent.click(colorButton);
-    expect(fallback.className).toContain('bg-blue-600');
     change(screen.getByPlaceholderText('홍길동'), '박학생');
     expect(fallback.textContent).toBe('박');
   });
