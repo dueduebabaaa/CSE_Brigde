@@ -10,7 +10,7 @@
  * 2. 원본 불변성 보장: 입력받은 프로필 객체, 공고 배열 및 내부 항목을 수정하지 않음
  * 3. 기존 코드 재사용: toAlgorithmProfile(), validateUserProfile(), extractTagsFromOpportunity(),
  *    recommendOpportunities(), adaptOpportunityMatchesToUi() 재사용
- * 4. 마감일 미정(deadline: null) 공고 지원: 불이익(감점) 없이 active 상태이면 추천 허용
+ * 4. 마감일 미정(deadline: null) 공고 지원: 마감일로 인한 감점 없이 게시 상태에 따라 추천 허용
  * 5. 기술 숙련도(tech_proficiency)는 점수 가중치에 임의 반영하지 않고 원본 DTO에 보존
  * 6. UI 경계 보안: 사용자 이메일 등 개인정보를 추천 결과(MatchResult)에 포함하지 않음
  */
@@ -20,7 +20,7 @@ import type { UserProfile as AlgorithmUserProfile, Opportunity, MatchResult } fr
 import { toAlgorithmProfile } from '../adapters/profileAlgorithmAdapter';
 import { validateUserProfile } from './validation';
 import { recommendOpportunities } from './opportunityRecommendation';
-import { adaptOpportunityMatchesToUi } from './adapters';
+import { adaptOpportunityMatchToUi } from './adapters';
 import { extractTagsFromOpportunity } from './opportunityTagExtractor';
 
 export interface ProfileRecommendationOptions {
@@ -125,13 +125,13 @@ function prepareOpportunity(opp: Opportunity, augmentTagsFromContent: boolean): 
  * @param profile 사용자 프로필 (ServiceUserProfile, ProfileUpsert, AlgorithmUserProfile 또는 null/undefined)
  * @param opportunities 공고 목록 배열 (불변성 보장)
  * @param options 기준 시각(currentDate) 및 태그 자동 보완(augmentTagsFromContent) 옵션
- * @returns UI 렌더링에 적합한 MatchResult[] (targetId, score, matchedTags, reasons)
+ * @returns 공통 MatchResult에 평가 가능 여부(evaluable)를 추가한 결과
  */
 export function getRecommendedOpportunitiesForProfile(
   profile: ServiceUserProfile | ProfileUpsert | AlgorithmUserProfile | null | undefined,
   opportunities: Opportunity[],
   options?: ProfileRecommendationOptions
-): MatchResult[] {
+): (MatchResult & { evaluable: boolean })[] {
   // 1. 공고 배열 검증 (빈 배열이거나 비정상 입력 시 빈 결과 반환)
   if (!Array.isArray(opportunities) || opportunities.length === 0) {
     return [];
@@ -152,12 +152,8 @@ export function getRecommendedOpportunitiesForProfile(
   // 4. 기존 공모전 맞춤 추천 알고리즘 실행
   const rawMatches = recommendOpportunities(algorithmProfile, preparedOpportunities, currentDate);
 
-  if (!rawMatches || rawMatches.length === 0) {
-    return [];
-  }
-
-  // 5. 프론트엔드 공통 MatchResult 형태로 변환 (opportunityId -> targetId)
-  return adaptOpportunityMatchesToUi(rawMatches);
+  // 공통 UI 결과에 공고 평가 가능 여부를 덧붙인다.
+  return rawMatches.map((match) => ({ ...adaptOpportunityMatchToUi(match), evaluable: match.evaluable }));
 }
 
 /**

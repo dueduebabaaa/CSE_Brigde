@@ -149,6 +149,7 @@ export const SYNONYM_MAP: Record<string, string> = {
   'react': 'React',
   'react.js': 'React',
   'reactjs': 'React',
+  '리액트': 'React',
 
   'vue': 'Vue',
   'vue.js': 'Vue',
@@ -164,19 +165,27 @@ export const SYNONYM_MAP: Record<string, string> = {
 
   'typescript': 'TypeScript',
   'ts': 'TypeScript',
+  '타입스크립트': 'TypeScript',
+  '타입 스크립트': 'TypeScript',
 
   'javascript': 'JavaScript',
   'js': 'JavaScript',
+  '자바스크립트': 'JavaScript',
+  '자바 스크립트': 'JavaScript',
 
   'python': 'Python',
   'py': 'Python',
+  '파이썬': 'Python',
 
   'fastapi': 'FastAPI',
   'fast api': 'FastAPI',
+  'django': 'Django',
 
   'spring': 'Spring Boot',
   'spring boot': 'Spring Boot',
   'springboot': 'Spring Boot',
+  '스프링 부트': 'Spring Boot',
+  '스프링부트': 'Spring Boot',
 
   'java': 'Java',
 
@@ -199,11 +208,15 @@ export const SYNONYM_MAP: Record<string, string> = {
   'postgres': 'PostgreSQL',
 
   'mysql': 'MySQL',
+  'mongodb': 'MongoDB',
   'redis': 'Redis',
   'supabase': 'Supabase',
   'firebase': 'Firebase',
 
   'aws': 'AWS',
+  'amazon web services': 'AWS',
+  '아마존 웹서비스': 'AWS',
+  '아마존 웹 서비스': 'AWS',
   'git': 'Git',
   'github': 'GitHub',
   'github actions': 'GitHub Actions',
@@ -213,10 +226,13 @@ export const SYNONYM_MAP: Record<string, string> = {
   'react native': 'React Native',
   'figma': 'Figma',
   'tailwindcss': 'TailwindCSS',
+  'tailwind css': 'TailwindCSS',
   'tailwind': 'TailwindCSS',
   'html/css': 'HTML/CSS',
   'html': 'HTML/CSS',
+  'html5': 'HTML/CSS',
   'css': 'HTML/CSS',
+  'css3': 'HTML/CSS',
   'graphql': 'GraphQL',
   'kafka': 'Kafka',
   'api': 'API',
@@ -397,6 +413,7 @@ export const KNOWN_TECH_CANONICALS = new Set<string>([
   'JavaScript',
   'Python',
   'FastAPI',
+  'Django',
   'Spring Boot',
   'Java',
   'C',
@@ -408,6 +425,7 @@ export const KNOWN_TECH_CANONICALS = new Set<string>([
   'MLOps',
   'PostgreSQL',
   'MySQL',
+  'MongoDB',
   'Redis',
   'Supabase',
   'Firebase',
@@ -550,7 +568,11 @@ export function classifyTag(rawTag: string): {
     return { category: 'tech', canonical, original };
   }
 
-  // 일반 태그 세트에 있거나, 알려지지 않은 불분명한 태그는 모두 general로 분류하여 점수 산출 제외
+  const interest = normalizeInterest(original);
+  if (interest !== '기타' && KNOWN_FIELD_CANONICALS.has(normalizeTag(interest))) {
+    return { category: 'field', canonical: interest, original };
+  }
+
   return { category: 'general', canonical, original };
 }
 

@@ -15,6 +15,8 @@
 import {
   getCanonicalTag,
   normalizeInterest,
+  normalizeTag,
+  SYNONYM_MAP,
   classifyTag,
 } from './tagClassification';
 
@@ -53,8 +55,10 @@ function createWordBoundaryRegex(keyword: string): RegExp {
 function createKoreanKeywordRegex(keyword: string): RegExp {
   const escaped = escapeRegExp(keyword);
   // 앞뒤에 한글/영문/숫자가 붙어서 다른 단어의 일부가 되는 것 방지
-  // (예: '웹' in '웹사이트'는 허용하되, '게임' in '게임을' 조사 결합 허용)
-  return new RegExp(`(?<![가-힣a-zA-Z0-9])${escaped}(?=[\\s,./!?;:()[\\]{}~_과와을를이가은는에서도로며]|$|[a-zA-Z0-9])`, 'i');
+  // 독립 단어와 조사 결합을 허용한다. 예를 들어 '게임을'에서 '게임'을 인식한다.
+  const boundary = '[^\\p{L}\\p{N}]';
+  const particle = '(?:과|와|을|를|이|가|은|는|에|에서|에도|로|으로|도|의|및|이며)';
+  return new RegExp(`(?<![\\p{L}\\p{N}])${escaped}(?=(?:${particle})?(?:${boundary}|$))`, 'iu');
 }
 
 /**
@@ -113,6 +117,9 @@ const TECH_CANDIDATE_KEYWORDS = [
   'Three.js',
   'Terraform',
   'HuggingFace',
+  ...Object.keys(SYNONYM_MAP).filter((keyword) =>
+    /[가-힣]/.test(keyword) && classifyTag(keyword).category === 'tech'),
+  'Amazon Web Services',
 ];
 
 /**
@@ -120,6 +127,9 @@ const TECH_CANDIDATE_KEYWORDS = [
  */
 const FIELD_CANDIDATE_KEYWORDS = [
   '인공지능',
+  'artificial intelligence',
+  'machine learning',
+  'deep learning',
   '머신러닝',
   '딥러닝',
   '빅데이터',
@@ -157,7 +167,7 @@ const FIELD_CANDIDATE_KEYWORDS = [
 
 // 정적 캐싱된 매처 배열 생성
 const BUILT_TECH_MATCHERS: KeywordMatcher[] = TECH_CANDIDATE_KEYWORDS.map((k) => ({
-  pattern: createWordBoundaryRegex(k),
+  pattern: /[가-힣]/.test(k) ? createKoreanKeywordRegex(k) : createWordBoundaryRegex(k),
   rawTag: k,
 }));
 
@@ -177,9 +187,9 @@ export function extractTagsFromOpportunity(
   title?: string | null,
   description?: string | null
 ): ExtractedOpportunityTags {
-  const titleText = (title ?? '').normalize('NFKC').trim();
-  const descText = (description ?? '').normalize('NFKC').trim();
-  const fullText = `${titleText} ${descText}`.trim();
+  const fullText = normalizeTag(`${title ?? ''} ${description ?? ''}`);
+  // 제품명 안의 '웹'은 웹 개발 분야의 근거에서 제외한다.
+  const fieldText = fullText.replace(/아마존 웹 ?서비스/g, ' ');
 
   if (!fullText) {
     return {
@@ -195,8 +205,8 @@ export function extractTagsFromOpportunity(
 
   // 1. 분야 키워드 탐색
   for (const matcher of BUILT_FIELD_MATCHERS) {
-    if (matcher.pattern.test(fullText)) {
-      const canonicalField = normalizeInterest(matcher.rawTag);
+    if (matcher.pattern.test(fieldText)) {
+      const canonicalField = normalizeInterest(getCanonicalTag(matcher.rawTag));
       if (canonicalField) {
         foundFieldCanonicals.add(canonicalField);
         allTagSet.add(canonicalField);

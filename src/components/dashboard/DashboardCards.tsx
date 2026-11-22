@@ -60,7 +60,7 @@ export function OpportunityCard({ opportunity, match, now: _now, demo, featured,
       <div className="flex flex-wrap items-center gap-1.5 text-xs font-bold text-[#7D39EB]">
         <Sparkles size={14} aria-hidden="true" />{demo ? '예시 적합도' : '추천 적합도'} {score === null ? '확인 중' : `${score}%`}
       </div>
-      <p className="mt-2 text-xs leading-relaxed text-[#64748B] break-words">{match.reasons[0] || '추천 이유를 확인하고 있어요.'}</p>
+      <p className="mt-2 text-xs leading-relaxed text-[#64748B] break-words">{match.reasons[0] || '추천 이유 미제공'}</p>
     </div>
     {error && <p role="alert" className="mt-3 text-xs text-red-600">{error}</p>}
     <Link to={`/opportunities/${opportunity.id}`} className={`${dashboardLink} mt-4 justify-between !text-[#0F172A]`}>자세히 보기<ArrowUpRight size={16} aria-hidden="true" /></Link>
