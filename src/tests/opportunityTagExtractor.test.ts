@@ -66,6 +66,19 @@ describe('공고 제목·본문 기반 태그 자동 추출 (extractTagsFromOppo
     expect(nullResult.allTags).toEqual([]);
   });
 
+  it('한글 기술 별칭과 공백·대소문자 차이를 표준 태그로 합친다', () => {
+    const result = extractTagsFromOpportunity('클라우드∙파이썬과 리액트', 'ＰＹＴＨＯＮ 및 SPRING   BOOT, 스프링 부트');
+    expect(result.fields).toEqual(['클라우드']);
+    expect(result.techs.sort()).toEqual(['Python', 'React', 'Spring Boot']);
+    expect(extractTagsFromOpportunity('Django, MongoDB 및 HTML5 실습').techs).toEqual(['Django', 'MongoDB', 'HTML/CSS']);
+  });
+
+  it('기관명이나 다른 단어에 포함된 짧은 표현을 분야로 추론하지 않는다', () => {
+    const result = extractTagsFromOpportunity('AI부트캠프사업단 클라우드웨어', '아마존 웹서비스 교육과 Upstage 행사');
+    expect(result.fields).toEqual([]);
+    expect(result.techs).toEqual(['AWS']);
+  });
+
   it('동일한 기술이나 분야가 제목과 본문에 중복 등장해도 결과에는 1번만 포함되어야 한다', () => {
     const title = 'React 프론트엔드 공모전 (React)';
     const description = 'React 프레임워크를 필수 사용해야 하며, React를 활용한 창의적 UI 개발.';

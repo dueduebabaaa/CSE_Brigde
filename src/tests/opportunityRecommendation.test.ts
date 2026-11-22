@@ -190,7 +190,7 @@ describe('공모전 맞춤 추천 알고리즘 (recommendOpportunities)', () => 
   describe('3. 모집 상태 및 마감일 필터링', () => {
     const student = mockUsers[0]; // 김컴학 (React, TypeScript)
 
-    it('closed, draft, needs_confirmation 상태의 공모전은 추천에서 제외되어야 한다', () => {
+    it('게시된 needs_confirmation은 포함하고 closed와 draft는 제외한다', () => {
       const contests: Opportunity[] = [
         {
           ...mockOpportunities[0],
@@ -206,6 +206,19 @@ describe('공모전 맞춤 추천 알고리즘 (recommendOpportunities)', () => 
           ...mockOpportunities[0],
           id: 'opp-needs-confirm',
           status: 'needs_confirmation',
+          deadline: null,
+        },
+        {
+          ...mockOpportunities[0],
+          id: 'opp-needs-confirm-expired',
+          status: 'needs_confirmation',
+          deadline: '2026-11-10T18:00:00+09:00',
+        },
+        {
+          ...mockOpportunities[0],
+          id: 'opp-needs-confirm-future',
+          status: 'needs_confirmation',
+          postedAt: '2026-11-20T18:00:00+09:00',
         },
         {
           ...mockOpportunities[0],
@@ -216,8 +229,7 @@ describe('공모전 맞춤 추천 알고리즘 (recommendOpportunities)', () => 
       ];
 
       const results = recommendOpportunities(student, contests, referenceDate);
-      expect(results).toHaveLength(1);
-      expect(results[0].opportunityId).toBe('opp-active');
+      expect(results.map((result) => result.opportunityId).sort()).toEqual(['opp-active', 'opp-needs-confirm']);
     });
 
     it('active 상태라도 마감일(deadline)이 현재 시점 이전인 공모전은 추천에서 제외되어야 한다', () => {
@@ -382,6 +394,7 @@ describe('공모전 맞춤 추천 알고리즘 (recommendOpportunities)', () => 
 
       expect(result.score).toBe(0);
       expect(result.matchedTags).toEqual([]);
+      expect(result.evaluable).toBe(false);
       expect(result.reasons[0]).toContain('부족하여');
     });
 
@@ -499,13 +512,9 @@ describe('공모전 맞춤 추천 알고리즘 (recommendOpportunities)', () => 
       const kim = mockUsers[0];
       const results = recommendOpportunities(kim, mockOpportunities, referenceDate);
 
-      // 전체 10개 중 active이며 deadline이 유효한 공고만 반환되어야 함
-      // opp-official-04, opp-admin-03는 needs_confirmation이므로 제외
-      expect(results.length).toBeGreaterThan(0);
-      for (const res of results) {
-        expect(res.opportunityId).not.toBe('opp-official-04');
-        expect(res.opportunityId).not.toBe('opp-admin-03');
-      }
+      expect(results.map((result) => result.opportunityId)).toEqual(
+        expect.arrayContaining(['opp-official-04', 'opp-admin-03']),
+      );
 
       // 상위 추천 공고 확인:
       // 오픈소스 공모전(opp-official-02, 50점)과 React/Node.js 해커톤(opp-official-01, 45점)이 최상위에 배치

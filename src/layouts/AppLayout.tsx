@@ -326,7 +326,7 @@ export const AppLayout: React.FC = () => {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-[#F8FAFC]">
         <p className="text-sm text-[#64748B]">프로필 상태를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.</p>
-        <button className="text-sm font-semibold text-[#7D39EB]" onClick={() => window.location.reload()}>다시 시도</button>
+        <button className="text-sm font-semibold text-[#7D39EB]" onClick={() => window.dispatchEvent(new Event('bridge-profile-updated'))}>다시 시도</button>
       </div>
     );
   }

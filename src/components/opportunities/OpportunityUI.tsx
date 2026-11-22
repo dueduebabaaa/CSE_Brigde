@@ -6,6 +6,18 @@ import { Tags } from '../dashboard/DashboardCards';
 import { displayTitle, formatDate } from '../dashboard/dashboardModel';
 import type { MatchResult, Opportunity, OpportunityCategory } from '../../types';
 import { opportunityStatus, STATUS_LABELS } from './opportunityModel';
+import type { OpportunitySource } from './opportunityModel';
+
+export function RecommendationStatus({ profileStatus, onProfileRetry }: Pick<OpportunitySource, 'profileStatus' | 'onProfileRetry'>) {
+  if (profileStatus === 'loading') return <p role="status" className="text-xs text-[#64748B]">추천에 사용할 프로필을 불러오는 중이에요.</p>;
+  if (profileStatus === 'error') return <div role="alert" className="text-xs text-[#64748B]">
+    <p>추천에 사용할 프로필을 불러오지 못했어요.</p>
+    {onProfileRetry && <Button variant="secondary" onClick={onProfileRetry} className="mt-2 !min-h-11">프로필 다시 불러오기</Button>}
+  </div>;
+  if (profileStatus === 'missing') return <p className="text-xs text-[#64748B]">프로필을 등록하면 맞춤 공고를 확인할 수 있어요.</p>;
+  if (profileStatus === 'signed_out') return <p className="text-xs text-[#64748B]">로그인하면 맞춤 공고를 확인할 수 있어요.</p>;
+  return <p className="text-xs text-[#64748B]">아직 제공된 추천 결과가 없어요.</p>;
+}
 
 export function DemoNotice({ demo }: { demo?: boolean }) {
   return demo ? <p role="note" className="rounded-xl border border-[#7D39EB]/20 bg-[#F4EFFE] px-3 py-2 text-[11px] leading-relaxed text-[#6025C5]">
@@ -85,6 +97,7 @@ export function OpportunityTile({ opportunity, match, now, demo = false, list = 
         {opportunity.tags.length > 2 && <span className="shrink-0 text-[10px] text-[#64748B]">+{opportunity.tags.length - 2}</span>}
       </div>
       <p className="mt-2 min-h-4 text-[10px] font-semibold leading-4 text-[#7D39EB]">{match ? `${demo ? '예시 적합도' : '추천 적합도'} ${Math.round(match.score)}%` : '\u00a0'}</p>
+      {match && <p className="mt-1 text-[10px] leading-4 text-[#64748B] break-words">{match.reasons[0] || '추천 이유 미제공'}</p>}
     </div>}
     <div className={`${list ? 'flex' : 'hidden sm:flex'} min-w-0 flex-1 flex-col`}>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">

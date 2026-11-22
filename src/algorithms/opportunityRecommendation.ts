@@ -36,20 +36,21 @@ export function recommendOpportunities(
   userProfile: UserProfile,
   opportunities: Opportunity[],
   currentDate: Date = new Date()
-): OpportunityMatchResult[] {
+): (OpportunityMatchResult & { evaluable: boolean })[] {
   if (!opportunities || opportunities.length === 0) {
     return [];
   }
 
-  // 1. 모집 상태, 게시일 및 마감일 필터링 (DATA_CONTRACT.md 8.3절 준수)
-  // - active: 모집 진행 중인 공고만 추천 대상
-  // - closed, draft, needs_confirmation: 제외
+  // 1. 모집 상태, 게시일 및 마감일 필터링
+  // - active, needs_confirmation: 게시된 공고를 후보에 포함
+  // - closed, draft: 제외
   // - postedAt이 기준 시각보다 미래인 게시 전 공고: 제외
-  // - deadline이 실제로 지난 공고: active여도 제외
-  // - deadline이 null인 경우: 날짜를 임의로 생성하지 않고 active 상태 유지
+  // - deadline이 실제로 지난 공고: 상태와 관계없이 제외
+  // - deadline이 null인 경우: 마감 조건을 적용하지 않음
   // - applicationStart가 미래인 공고: 게시 완료(postedAt <= currentDate) 상태이면 모집 예정으로 추천 허용
-  const activeOpportunities = opportunities.filter((opp) => {
-    if (opp.status !== 'active' || !Number.isFinite(currentDate.getTime())) return false;
+  const candidates = opportunities.filter((opp) => {
+    if (opp.status !== 'active' && opp.status !== 'needs_confirmation') return false;
+    if (!Number.isFinite(currentDate.getTime())) return false;
     const postedAt = parseOpportunityTimestamp(opp.postedAt);
     if (!postedAt || Date.parse(postedAt) > currentDate.getTime()) return false;
     if (opp.applicationStart !== null && !parseOpportunityTimestamp(opp.applicationStart)) return false;
@@ -60,7 +61,7 @@ export function recommendOpportunities(
     return true;
   });
 
-  if (activeOpportunities.length === 0) {
+  if (candidates.length === 0) {
     return [];
   }
 
@@ -93,7 +94,7 @@ export function recommendOpportunities(
   const userTechSet = new Set(userTechs.map((t) => t.toLowerCase()));
 
   // 3. 각 공모전에 대해 적합도 점수 및 추천 이유 산출
-  const results: OpportunityMatchResult[] = activeOpportunities.map((opp) => {
+  const results = candidates.map((opp) => {
     // 공모전 태그 분류 (분야, 기술, 일반 태그 분리 및 중복 제거)
     const classified = classifyTags(opp.tags ?? []);
     const oppFields = classified.fields;
@@ -202,6 +203,7 @@ export function recommendOpportunities(
     return {
       opportunityId: opp.id,
       score: finalScore,
+      evaluable: availableWeight > 0,
       matchedTags,
       reasons,
     };
