@@ -19,6 +19,7 @@ export function OpportunityDetail({ opportunity, matches = [], recruitments, det
   onRetry, demo = false, now = new Date(), bookmarkIds = [], onBookmark, profileStatus, onProfileRetry }: OpportunityDetailProps) {
   const item = opportunity && publicOpportunities([opportunity], now).length ? opportunity : null;
   const match = item ? evaluationMap(matches).get(item.id) : undefined;
+  const unavailableReason = item ? matches.find((result) => result.targetId === item.id && result.evaluable === false)?.reasons[0] : undefined;
   const status = item ? opportunityStatus(item, now) : 'unknown';
   const source = demo ? undefined : safeExternalUrl(item?.sourceUrl);
   const application = demo ? undefined : safeExternalUrl(item?.applicationUrl);
@@ -60,7 +61,9 @@ export function OpportunityDetail({ opportunity, matches = [], recruitments, det
 
         <section aria-label="추천 이유" className="min-w-0 rounded-2xl border border-[#7D39EB]/15 bg-[#F4EFFE]/50 p-5 sm:p-7">
           <h2 className="mb-4 text-base font-bold text-[#0F172A]">나에게 맞는 이유</h2>
-          {match ? <Recommendation match={match} demo={demo} /> : <RecommendationStatus profileStatus={profileStatus} onProfileRetry={onProfileRetry} />}
+          {match ? <Recommendation match={match} demo={demo} />
+            : profileStatus === 'ready' ? <p className="text-xs text-[#64748B]">{unavailableReason || (status === 'closed' ? '모집이 종료된 공고는 추천 평가에서 제외돼요.' : '이 공고의 추천 적합도를 계산할 수 없어요.')}</p>
+            : <RecommendationStatus profileStatus={profileStatus} onProfileRetry={onProfileRetry} />}
           {match?.matchedTags.length ? <div className="mt-4"><Tags tags={match.matchedTags} /></div> : null}
         </section>
 

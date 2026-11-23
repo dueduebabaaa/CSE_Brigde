@@ -102,6 +102,27 @@ describe('실제 데이터 형식의 공고 추천 라우트', () => {
     expect(mocks.opportunityRows).toHaveBeenCalledOnce();
   });
 
+  it('PostgreSQL 시각 표기의 일정 확인 중 공고도 추천되며 모집 중 집계에서는 빠진다', async () => {
+    const notice = { ...rows[2], posted_at: '2020-01-01 00:00:00+00' };
+    mocks.opportunityRows.mockResolvedValue({ data: [notice], error: null });
+
+    render(<TestRoutes />);
+    expect(await screen.findByRole('link', { name: '추천 공고: 1' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: '공개 공고: 1' })).toBeTruthy();
+    expect(screen.getByText('모집 중 0개 · 일정 확인 중 제외')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('link', { name: '탐색으로 이동' }));
+    expect(screen.getByRole('button', { name: /모집 중인 공고/ }).textContent).toContain('0');
+    expect(screen.getByRole('option', { name: '추천순' })).toHaveProperty('disabled', false);
+    const card = screen.getByRole('article');
+    expect(card.querySelector('svg[viewBox="0 0 150 85"]')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '목록형 보기' }));
+    expect(screen.getByRole('article').querySelector('svg[viewBox="0 0 150 85"]')).toBeNull();
+
+    fireEvent.click(within(screen.getByRole('article')).getByRole('link', { name: '상세 보기' }));
+    expect(within(screen.getByRole('region', { name: '추천 이유' })).getByText('추천 적합도 100%')).toBeTruthy();
+  });
+
   it('추천순에서 실제 점수로 정렬하고 추천 필터와 검색을 조합한다', async () => {
     render(<TestRoutes initialEntry="/opportunities" />);
     await screen.findByText('검색 결과 3개');
@@ -199,10 +220,18 @@ describe('실제 데이터 형식의 공고 추천 라우트', () => {
     const zeroCard = cards.find(card => card.textContent?.includes(rows[1].title))!;
     expect(within(unknownCard).queryByText(/추천 적합도/)).toBeNull();
     expect(within(zeroCard).getAllByText('추천 적합도 0%').length).toBeGreaterThan(0);
-    expect(screen.getByRole('option', { name: '추천순' })).toHaveProperty('disabled', true);
+    expect(screen.getByRole('option', { name: '추천순' })).toHaveProperty('disabled', false);
+    fireEvent.change(screen.getByLabelText('공고 정렬'), { target: { value: 'recommended' } });
+    expect(screen.getByLabelText('공고 정렬')).toHaveProperty('value', 'recommended');
+    expect(screen.getByText('일치하는 추천 공고가 없어 공고를 최신순으로 표시해요.')).toBeTruthy();
     expect(screen.getByRole('button', { name: /추천 공고/ }).textContent).toContain('0');
     fireEvent.click(within(unknownCard).getByRole('link', { name: '상세 보기' }));
-    expect(within(screen.getByRole('region', { name: '추천 이유' })).queryByText(/추천 적합도/)).toBeNull();
+    const reasons = within(screen.getByRole('region', { name: '추천 이유' }));
+    expect(reasons.queryByText(/추천 적합도/)).toBeNull();
+    const opportunity = mapOpportunityRow(unknown)!;
+    const evaluation = getRecommendedOpportunitiesForProfile(firstProfile, [opportunity])[0];
+    expect(evaluation.evaluable).toBe(false);
+    expect(reasons.getByText(evaluation.reasons[0])).toBeTruthy();
   });
 
   it('프로필이 아직 없을 때 추천 필터가 전체 공고를 추천 결과로 표시하지 않는다', async () => {

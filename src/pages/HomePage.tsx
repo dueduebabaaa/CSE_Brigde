@@ -40,7 +40,7 @@ export function HomeDashboard({ data, profileName, loading = false, error, demo 
     return member ? [{ member, match }] : [];
   }).slice(0, 3);
   const stats = [
-    { label: profileStatus === undefined ? '모집 중인 공모전' : '공개 공고', value: profileStatus === undefined ? summary.open.length : opportunities.size, to: '/opportunities', icon: Compass, tone: 'bg-[#7D39EB] text-white border-[#7D39EB]', caption: '새로운 도전의 시작' },
+    { label: profileStatus === undefined ? '모집 중인 공모전' : '공개 공고', value: profileStatus === undefined ? summary.open.length : opportunities.size, to: '/opportunities', icon: Compass, tone: 'bg-[#7D39EB] text-white border-[#7D39EB]', caption: profileStatus !== undefined && available ? `모집 중 ${summary.open.length}개 · 일정 확인 중 제외` : '새로운 도전의 시작' },
     { label: '학부 공식 공고', value: summary.official.length, to: '/opportunities', icon: Clock3, tone: 'bg-[#C6FF33] text-black border-[#C6FF33]', caption: '경북대 컴퓨터학부' },
     { label: profileStatus === undefined ? '팀원 모집 현황' : '추천 공고',
       value: profileStatus === undefined ? summary.recruiting.length : profileStatus === 'ready' ? recommendations.length : null,

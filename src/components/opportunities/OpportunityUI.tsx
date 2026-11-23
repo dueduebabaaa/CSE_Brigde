@@ -81,11 +81,10 @@ export function OpportunityTile({ opportunity, match, now, demo = false, list = 
 }) {
   const status = opportunityStatus(opportunity, now);
   const to = `/opportunities/${encodeURIComponent(opportunity.id)}${listSearch}`;
-  return <article className={`min-w-0 rounded-2xl border border-[#E2E8F0] bg-white sm:p-5 ${list ? 'p-4 sm:grid sm:grid-cols-[160px_minmax(0,1fr)] sm:gap-5' : 'relative flex flex-col p-3'}`}>
-    <div className={list ? '' : 'max-sm:[&>div]:h-12 max-sm:[&>div]:px-2 max-sm:[&_svg]:w-14 max-sm:[&_span]:text-[10px]'}><OpportunityGraphic category={opportunity.category} compact={list} /></div>
+  return <article className={`min-w-0 rounded-2xl border border-[#E2E8F0] bg-white sm:p-5 ${list ? 'p-4' : 'relative flex flex-col p-3'}`}>
     {!list && <div className="flex min-w-0 flex-1 flex-col sm:hidden">
       <div className="mt-1 flex min-h-11 items-center justify-between gap-0.5">
-        <span className={`min-w-0 text-[10px] font-semibold leading-tight ${status === 'open' ? 'text-[#7D39EB]' : 'text-[#64748B]'}`}>{STATUS_LABELS[status]}</span>
+        <div className="min-w-0 text-[10px] font-semibold leading-tight"><span className="block text-[#7D39EB]">{opportunity.category}</span><span className="text-[#64748B]">{STATUS_LABELS[status]}</span></div>
         <div className="relative z-20 shrink-0"><BookmarkButton id={opportunity.id} saved={saved} onBookmark={onBookmark} /></div>
       </div>
       <h2 className="h-[54px] text-[13px] font-bold leading-[18px] text-[#0F172A]">
@@ -100,8 +99,8 @@ export function OpportunityTile({ opportunity, match, now, demo = false, list = 
       {match && <p className="mt-1 text-[10px] leading-4 text-[#64748B] break-words">{match.reasons[0] || '추천 이유 미제공'}</p>}
     </div>}
     <div className={`${list ? 'flex' : 'hidden sm:flex'} min-w-0 flex-1 flex-col`}>
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-        <Badge variant={status === 'open' ? 'violet' : status === 'closed' ? 'gray' : 'amber'}>{STATUS_LABELS[status]}</Badge>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap gap-1.5"><Badge variant="gray">{opportunity.category}</Badge><Badge variant={status === 'open' ? 'violet' : status === 'closed' ? 'gray' : 'amber'}>{STATUS_LABELS[status]}</Badge></div>
         <BookmarkButton id={opportunity.id} saved={saved} onBookmark={onBookmark} />
       </div>
       <p className="mt-1 text-[11px] text-[#64748B]">{demo ? '가상 예시' : SOURCE_LABELS[opportunity.sourceType]}</p>
