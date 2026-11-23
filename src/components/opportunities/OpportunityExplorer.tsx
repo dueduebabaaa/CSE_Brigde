@@ -16,6 +16,7 @@ export function OpportunityExplorer({ opportunities, matches = [], loading, erro
   const items = publicOpportunities(opportunities || [], now);
   const suppliedMatches = recommendationMap(matches);
   const evaluations = evaluationMap(matches);
+  const unavailableEvaluations = new Map(matches.filter((match) => match.evaluable === false).map((match) => [match.targetId, match]));
   const hasRecommendations = items.some((item) => suppliedMatches.has(item.id));
   const ready = opportunities !== undefined && !loading && !error;
   const canSortByRecommendation = ready && (profileStatus === 'ready' || hasRecommendations);
@@ -114,7 +115,7 @@ export function OpportunityExplorer({ opportunities, matches = [], loading, erro
         : !items.length ? <EmptyState title="아직 등록된 공고가 없어요" description="새로운 기회가 준비되면 여기에서 확인하세요." />
         : !results.length ? <EmptyState title={filters.recommended && !hasRecommendations ? '표시할 추천 공고가 없어요' : '검색 결과가 없어요'} description="다른 검색어나 필터로 새로운 기회를 찾아보세요." action={{ label: '전체 필터 초기화', onClick: reset }} />
         : <div className={`grid min-w-0 ${list ? 'grid-cols-1 gap-4' : 'grid-cols-1 gap-3 min-[360px]:grid-cols-2 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3'}`}>
-          {results.map((opportunity) => <OpportunityTile key={opportunity.id} opportunity={opportunity} match={evaluations.get(opportunity.id)} now={now} demo={demo} list={list}
+          {results.map((opportunity) => <OpportunityTile key={opportunity.id} opportunity={opportunity} match={evaluations.get(opportunity.id)} unavailableEvaluation={unavailableEvaluations.get(opportunity.id)} now={now} demo={demo} list={list}
             listSearch={params.toString() ? `?${params}` : ''} saved={bookmarkIds.includes(opportunity.id)} onBookmark={onBookmark} />)}
         </div>}
     </section>
