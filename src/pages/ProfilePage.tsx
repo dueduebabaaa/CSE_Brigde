@@ -6,6 +6,7 @@ import { MAJOR_TRACKS, GRADE_OPTIONS } from '../constants/majors';
 import { TECH_CATALOG } from '../constants/technologies';
 import type { UserProfile } from '../services/profileService';
 import { ACTIVITY_GOALS, ACTIVITY_TYPES, INTERESTS, ROLES, buildProfilePatch, toProfileDraft, validateProfileDraft, type ProfileDraft } from '../features/profile/profileForm';
+import { RecruitmentContactSettings } from '../features/profile/RecruitmentContactSettings';
 import { Field, MultiChoice, Section, fieldClass } from '../features/profile/ProfileFields';
 
 function ProfileEditor({ profile }: { profile: UserProfile }) {
@@ -110,7 +111,12 @@ export function ProfilePage() {
     {status === 'error' && <div role="alert" className="space-y-3 rounded-2xl border border-[#E2E8F0] bg-white p-6 text-sm"><p>프로필을 불러오지 못했습니다.</p><p className="break-words text-[#64748B]">{error}</p><button type="button" onClick={refresh} className="min-h-11 rounded-lg bg-[#7D39EB] px-4 text-white">다시 시도</button></div>}
     {status === 'missing' && <Section title="등록된 프로필이 없습니다"><p className="text-sm text-[#64748B]">프로필 설정을 완료해 주세요.</p><Link className="inline-flex min-h-11 items-center text-sm font-bold text-[#7D39EB]" to="/onboarding">프로필 설정하기</Link></Section>}
     {status === 'signed_out' && <p className="text-sm text-[#64748B]">로그인 후 내 프로필을 확인할 수 있습니다.</p>}
-    {status === 'ready' && profile && <ProfileEditor key={profile.id} profile={profile} />}
+    {status === 'ready' && profile && (
+      <>
+        <ProfileEditor key={profile.id} profile={profile} />
+        <RecruitmentContactSettings key={`contact-${profile.id}`} />
+      </>
+    )}
     <div className="grid grid-cols-1 gap-4 text-xs sm:grid-cols-3">
       <Link to="/recruitments" className="rounded-xl border border-[#E2E8F0] bg-white p-4"><span className="flex items-center gap-2 text-[#64748B]"><FileText size={16} />내 모집글</span><span className="mt-2 block text-[#64748B]">현황 연동 준비 중</span></Link>
       <div className="rounded-xl border border-[#E2E8F0] bg-white p-4"><span className="flex items-center gap-2 text-[#64748B]"><Mail size={16} />받은 팀 초대장</span><span className="mt-2 block text-[#64748B]">현황 연동 준비 중</span></div>

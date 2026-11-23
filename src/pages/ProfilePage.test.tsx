@@ -8,11 +8,22 @@ import { ProfilePage } from './ProfilePage';
 import { HomePage } from './HomePage';
 import { OpportunitySourceLayout } from '../components/opportunities/OpportunitySourceLayout';
 import { profileFixture } from '../features/profile/profileFixture';
+import {
+  deleteMyRecruitmentContact, getMyRecruitmentContact, revokeMyRecruitmentContactSharing, saveMyRecruitmentContact,
+} from '../services/recruitmentContactService';
 import type { UserProfile } from '../services/profileService';
 const mocks = vi.hoisted(() => ({ auth: { user: { id: 'user-a' } as { id: string } | null, loading: false }, fetch: vi.fn(), update: vi.fn() }));
 vi.mock('../hooks/useAuth', () => ({ useAuth: () => mocks.auth }));
 vi.mock('../services/profileService', () => ({ fetchMyProfile: mocks.fetch, updateMyProfile: mocks.update }));
 vi.mock('../services/opportunityService', () => ({ fetchOpportunities: async () => [] }));
+vi.mock('../services/recruitmentContactService', () => ({
+  deleteMyRecruitmentContact: vi.fn(),
+  getMyRecruitmentContact: vi.fn(),
+  revokeMyRecruitmentContactSharing: vi.fn(),
+  saveMyRecruitmentContact: vi.fn(),
+}));
+beforeEach(() => { vi.mocked(getMyRecruitmentContact).mockResolvedValue(null); });
+
 const deferred = <T,>() => { let resolve!: (value: T) => void; let reject!: (value: unknown) => void; const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
 function TestApp() {
   return <MemoryRouter><MyProfileProvider>
@@ -30,6 +41,35 @@ beforeEach(() => { mocks.auth = { user: { id: 'user-a' }, loading: false }; mock
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe('마이페이지 실제 서비스 연동', () => {
+  it('기존 프로필과 별도로 연락처를 저장하고 동의 철회 및 삭제를 처리한다', async () => {
+    vi.mocked(saveMyRecruitmentContact)
+      .mockResolvedValueOnce({ kakaoId: 'fixture-contact', sharingEnabled: false })
+      .mockResolvedValueOnce({ kakaoId: 'fixture-contact', sharingEnabled: true });
+    render(<TestApp />);
+    const form = within(await screen.findByRole('form', { name: '카카오톡 연락처 설정' }));
+    const consent = form.getByRole<HTMLInputElement>('checkbox');
+    expect(consent.checked).toBe(false);
+    fireEvent.change(form.getByLabelText('카카오톡 ID'), { target: { value: 'fixture-contact' } });
+    fireEvent.click(form.getByRole('button', { name: '연락처 저장' }));
+    await screen.findByText('카카오톡 연락처를 저장했어요.');
+    expect(saveMyRecruitmentContact).toHaveBeenCalledWith('fixture-contact', false);
+
+    fireEvent.click(consent);
+    fireEvent.click(form.getByRole('button', { name: '연락처 저장' }));
+    await waitFor(() => expect(saveMyRecruitmentContact).toHaveBeenLastCalledWith('fixture-contact', true));
+    fireEvent.click(await form.findByRole('button', { name: '공유 동의 철회' }));
+    await screen.findByText('공유 동의를 철회했어요.');
+    expect(revokeMyRecruitmentContactSharing).toHaveBeenCalledTimes(1);
+    expect(consent.checked).toBe(false);
+    expect(form.getByLabelText<HTMLInputElement>('카카오톡 ID').value).toBe('fixture-contact');
+
+    fireEvent.click(form.getByRole('button', { name: '연락처 삭제' }));
+    await screen.findByText('카카오톡 연락처를 삭제했어요.');
+    expect(deleteMyRecruitmentContact).toHaveBeenCalledTimes(1);
+    expect(form.getByLabelText<HTMLInputElement>('카카오톡 ID').value).toBe('');
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
+
   it.each(['', '   '])('닉네임 삭제·공백(%j)을 빈 문자열로 저장하고 홈에서 이름을 표시한다', async nickname => {
     render(<TestApp />); await loaded(); edit('닉네임', nickname); save();
     await screen.findByText('프로필 변경 사항을 저장했습니다.');
