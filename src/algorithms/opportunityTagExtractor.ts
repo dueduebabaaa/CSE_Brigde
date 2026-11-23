@@ -172,10 +172,17 @@ const BUILT_TECH_MATCHERS: KeywordMatcher[] = TECH_CANDIDATE_KEYWORDS.map((k) =>
   rawTag: k,
 }));
 
-const BUILT_FIELD_MATCHERS: KeywordMatcher[] = FIELD_CANDIDATE_KEYWORDS.map((k) => ({
-  pattern: (k === 'AI' || /[가-힣]/.test(k)) ? createKoreanKeywordRegex(k) : createWordBoundaryRegex(k),
-  rawTag: k,
-}));
+const BUILT_FIELD_MATCHERS: KeywordMatcher[] = [
+  ...FIELD_CANDIDATE_KEYWORDS.map((keyword) => ({
+    pattern: (keyword === 'AI' || /[가-힣]/.test(keyword))
+      ? createKoreanKeywordRegex(keyword)
+      : createWordBoundaryRegex(keyword),
+    rawTag: keyword,
+  })),
+  // Compact course topics carry field evidence; organization names do not.
+  { pattern: createKoreanKeywordRegex('AI에이전트'), rawTag: 'AI' },
+  { pattern: createKoreanKeywordRegex('AI코딩'), rawTag: 'AI' },
+];
 
 /**
  * 공고의 제목과 본문에서 실제 언급된 분야 및 기술 태그를 추출합니다.

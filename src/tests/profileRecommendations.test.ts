@@ -88,6 +88,29 @@ describe('프로필-공고 추천 연결기 (getRecommendedOpportunitiesForProfi
     }
   });
 
+  it('AI 강의 내용을 인식하고 사업단 이름만 있는 경우와 마감 공고를 구분한다', () => {
+    const profile = createServiceProfile({
+      interests: ['인공지능'], tech_stacks: [], wanted_tech_stacks: [],
+    });
+    const title = '[글로벌 AI부트캠프사업단] 해외연수 참가자 모집';
+    const description = 'AI에이전트·AI코딩 강의와 실습, 실리콘밸리 기업 방문 및 팀 프로젝트';
+    const tags = ['부트캠프'];
+    const [match] = getRecommendedOpportunitiesForProfile(profile, [
+      createOpportunity({ title, description, tags }),
+    ], { currentDate: referenceDate });
+    expect(match).toMatchObject({ evaluable: true, score: 100, matchedTags: ['AI'] });
+
+    const titleOnly = getRecommendedOpportunitiesForProfile(profile, [
+      createOpportunity({ title, description: '', tags }),
+    ], { currentDate: referenceDate });
+    expect(titleOnly[0]).toMatchObject({ evaluable: false, score: 0 });
+
+    const closed = getRecommendedOpportunitiesForProfile(profile, [
+      createOpportunity({ title, description, tags, status: 'closed' }),
+    ], { currentDate: referenceDate });
+    expect(closed).toEqual([]);
+  });
+
   describe('1. 정상 프로필 및 결과 변환 검증', () => {
     it('ServiceUserProfile과 Opportunity 목록을 입력받아 정상적인 MatchResult[]를 산출한다', () => {
       const profile = createServiceProfile();
