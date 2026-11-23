@@ -82,11 +82,11 @@ describe('실제 데이터 형식의 공고 추천 라우트', () => {
     const homeCard = await within(home).findByRole('heading', { name: '리액트 실제 공고' });
     expect(within(homeCard.closest('article')!).getByText(score)).toBeTruthy();
     expect(within(homeCard.closest('article')!).getByText(match.reasons[0])).toBeTruthy();
-    expect(screen.getByRole('link', { name: '공개 공고: 3' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: '전체 공고: 3' })).toBeTruthy();
     expect(screen.getByRole('link', { name: '추천 공고: 1' })).toBeTruthy();
     expect(screen.queryByText(/개발용 예시 데이터|가상 예시/)).toBeNull();
 
-    fireEvent.click(screen.getByRole('link', { name: '탐색으로 이동' }));
+    fireEvent.click(screen.getByRole('link', { name: '전체 공고: 3' }));
     const cards = screen.getAllByRole('article');
     const reactCard = cards.find((card) => card.textContent?.includes('리액트 실제 공고'))!;
     expect(within(reactCard).getAllByText(score).length).toBeGreaterThan(0);
@@ -108,8 +108,7 @@ describe('실제 데이터 형식의 공고 추천 라우트', () => {
 
     render(<TestRoutes />);
     expect(await screen.findByRole('link', { name: '추천 공고: 1' })).toBeTruthy();
-    expect(screen.getByRole('link', { name: '공개 공고: 1' })).toBeTruthy();
-    expect(screen.getByText('모집 중 0개 · 일정 확인 중 제외')).toBeTruthy();
+    expect(screen.getByRole('link', { name: '전체 공고: 1' })).toBeTruthy();
 
     fireEvent.click(screen.getByRole('link', { name: '탐색으로 이동' }));
     expect(screen.getByRole('button', { name: /모집 중인 공고/ }).textContent).toContain('0');
@@ -158,7 +157,7 @@ describe('실제 데이터 형식의 공고 추천 라우트', () => {
     expect(await screen.findByRole('alert')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: '다시 시도' }));
     expect(await screen.findByText('공개된 공고가 없어요')).toBeTruthy();
-    expect(screen.getByRole('link', { name: '공개 공고: 0' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: '전체 공고: 0' })).toBeTruthy();
     expect(screen.queryByRole('article')).toBeNull();
   });
 

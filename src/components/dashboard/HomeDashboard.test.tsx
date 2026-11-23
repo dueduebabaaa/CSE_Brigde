@@ -37,7 +37,7 @@ describe('대시보드 집계와 표시', () => {
 
   it('연동 전에는 통계 0을 주장하지 않고 빈 상태·로딩·오류를 구분한다', () => {
     const { rerender } = render(<MemoryRouter><HomeDashboard now={now} /></MemoryRouter>);
-    expect(screen.getByRole('link', { name: '모집 중인 공모전: 확인 대기' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: '전체 공고: 확인 대기' })).toBeTruthy();
     expect(screen.getByText('다음 도전을 기다리고 있어요')).toBeTruthy();
     expect(screen.queryByText('개발용 예시 데이터')).toBeNull();
     rerender(<MemoryRouter><HomeDashboard now={now} loading /></MemoryRouter>);
@@ -52,7 +52,7 @@ describe('대시보드 집계와 표시', () => {
   it('전달받은 추천·프로필·통계를 표시하고 가상 원본 링크는 열지 않는다', () => {
     render(<MemoryRouter><HomeDashboard data={demoDashboard} demo now={now} profileName="테스트" /></MemoryRouter>);
     const summary = summarizeDashboard(demoDashboard, now);
-    expect(screen.getByRole('link', { name: `모집 중인 공모전: ${summary.open.length}` })).toBeTruthy();
+    expect(screen.getByRole('link', { name: `전체 공고: ${demoDashboard.opportunities.length}` })).toBeTruthy();
     expect(screen.getByRole('link', { name: `내 프로젝트 현황: ${summary.activeTeams.length}` })).toBeTruthy();
     const recommended = screen.getByRole('region', { name: '나에게 맞는 공모전' });
     expect(within(recommended).getAllByRole('article')).toHaveLength(3);
@@ -61,6 +61,35 @@ describe('대시보드 집계와 표시', () => {
     expect(screen.queryByRole('link', { name: '원본 공지' })).toBeNull();
     expect(screen.queryByText(/@knu.ac.kr/)).toBeNull();
     expect(screen.getByRole('link', { name: '팀원 찾아보기' }).getAttribute('href')).toBe('/members');
+  });
+
+  it('출처와 모집 상태에 관계없이 공개 공고를 집계하고 새 데이터에 맞춰 갱신한다', () => {
+    const base = demoDashboard.opportunities[0];
+    const publicItems = Array.from({ length: 9 }, (_, index) => ({
+      ...base, id: String(index), postedAt: now.toISOString(),
+      status: (['active', 'needs_confirmation', 'closed'] as const)[index % 3],
+      sourceType: (['knu_cse_official', 'admin_manual', 'user_manual'] as const)[index % 3],
+    }));
+    const opportunities = [
+      ...publicItems,
+      { ...base, id: 'draft', status: 'draft' as const, postedAt: now.toISOString() },
+      { ...base, id: 'future', postedAt: new Date(now.getTime() + 1).toISOString() },
+    ];
+    const dashboard = (items = opportunities) => <MemoryRouter><HomeDashboard
+      data={{ ...EMPTY_DASHBOARD, opportunities: items }} now={now} profileStatus="ready" /></MemoryRouter>;
+    const { rerender } = render(dashboard());
+
+    const total = screen.getByRole('link', { name: '전체 공고: 9' });
+    expect(total.getAttribute('href')).toBe('/opportunities');
+    expect(total.classList.contains('col-span-2')).toBe(true);
+    expect(total.classList.contains('bg-[#C6FF33]')).toBe(true);
+    expect(screen.queryByRole('link', { name: /^(공개 공고|학부 공식 공고):/ })).toBeNull();
+    expect(total.nextElementSibling).toBe(screen.getByRole('link', { name: '추천 공고: 0' }));
+    expect(total.parentElement?.lastElementChild).toBe(screen.getByRole('link', { name: '내 프로젝트 현황: 확인 대기' }));
+
+    rerender(dashboard([...opportunities, { ...publicItems[0], id: 'added' }]));
+    expect(screen.getByRole('link', { name: '전체 공고: 10' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: '추천 공고: 0' })).toBeTruthy();
   });
 
   it('저장 실패 시 북마크 성공 상태를 만들지 않으며 안전한 원본 URL만 허용한다', async () => {
