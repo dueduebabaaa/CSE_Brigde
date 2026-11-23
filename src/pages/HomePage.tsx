@@ -30,7 +30,8 @@ export function HomeDashboard({ data, profileName, loading = false, error, demo 
   const records = data || EMPTY_DASHBOARD;
   const summary = summarizeDashboard(records, now);
   const available = Boolean(data) && !loading && !error;
-  const opportunities = new Map(publicOpportunities(records.opportunities, now).map((item) => [item.id, item]));
+  const publicItems = publicOpportunities(records.opportunities, now);
+  const opportunities = new Map(publicItems.map((item) => [item.id, item]));
   const recommendations = [...recommendationMap(records.opportunityMatches).values()].flatMap((match) => {
     const opportunity = opportunities.get(match.targetId);
     return opportunity ? [{ opportunity, match }] : [];
@@ -40,8 +41,7 @@ export function HomeDashboard({ data, profileName, loading = false, error, demo 
     return member ? [{ member, match }] : [];
   }).slice(0, 3);
   const stats = [
-    { label: profileStatus === undefined ? '모집 중인 공모전' : '공개 공고', value: profileStatus === undefined ? summary.open.length : opportunities.size, to: '/opportunities', icon: Compass, tone: 'bg-[#7D39EB] text-white border-[#7D39EB]', caption: profileStatus !== undefined && available ? `모집 중 ${summary.open.length}개 · 일정 확인 중 제외` : '새로운 도전의 시작' },
-    { label: '학부 공식 공고', value: summary.official.length, to: '/opportunities', icon: Clock3, tone: 'bg-[#C6FF33] text-black border-[#C6FF33]', caption: '경북대 컴퓨터학부' },
+    { label: '전체 공고', value: publicItems.length, to: '/opportunities', icon: Clock3, tone: 'col-span-2 bg-[#C6FF33] text-black border-[#C6FF33]', caption: '공개된 공모전·대외활동' },
     { label: profileStatus === undefined ? '팀원 모집 현황' : '추천 공고',
       value: profileStatus === undefined ? summary.recruiting.length : profileStatus === 'ready' ? recommendations.length : null,
       to: profileStatus === undefined ? '/recruitments' : '/opportunities?recommended=1&sort=recommended',
