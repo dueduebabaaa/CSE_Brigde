@@ -57,6 +57,12 @@ export const ProjectsPage: React.FC = () => {
     };
   }, [userId, status, retry]);
 
+  const isLoading = status === 'loading' || loading;
+  const canViewRecruitments = status === 'ready' && Boolean(userId);
+  const count = !isLoading && canViewRecruitments && error === null
+    ? `${recruitments.length}개`
+    : '—';
+
   const statusLabel = (value: Recruitment['status']) => {
     if (value === 'recruiting') return '모집중';
     if (value === 'completed') return '모집완료';
@@ -95,21 +101,21 @@ export const ProjectsPage: React.FC = () => {
             내가 만든 모집글
           </h2>
           <span className="text-sm text-[#64748B]">
-            {recruitments.length}개
+            {count}
           </span>
         </div>
 
-        {status === 'loading' || loading ? (
+        {isLoading ? (
           <div className="p-10 text-center rounded-2xl bg-white border border-[#E2E8F0] text-[#64748B]">
             모집글을 불러오는 중입니다.
           </div>
-        ) : status !== 'ready' ? (
+        ) : !canViewRecruitments ? (
           <div className="p-10 text-center rounded-2xl bg-white border border-[#E2E8F0]">
             <p className="text-[#64748B]">
               로그인과 프로필 설정을 완료하면 내 모집글을 확인할 수 있어요.
             </p>
           </div>
-        ) : error ? (
+        ) : error !== null ? (
           <div className="p-10 text-center rounded-2xl bg-white border border-[#E2E8F0] space-y-3">
             <p className="font-bold text-[#111111]">
               모집글을 불러오지 못했어요.

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Outlet, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   getRecruitmentHeadcount,
@@ -12,8 +12,9 @@ import { RecruitmentsPage } from './RecruitmentsPage';
 import { RecruitmentDetailPage } from './RecruitmentDetailPage';
 import { RecruitmentCreatePage } from './RecruitmentCreatePage';
 import { RecruitmentEditPage } from './RecruitmentEditPage';
+import { App } from '../App';
 import { ProjectsPage } from './ProjectsPage';
-import { getRecruitments } from '../services/recruitmentService';
+import { getApplicationsForRecruitment, getRecruitmentById, getRecruitments } from '../services/recruitmentService';
 import type { Application, Recruitment } from '../types';
 
 const testAuth = vi.hoisted(() => ({
@@ -37,6 +38,13 @@ vi.mock('../contexts/MyProfileContext', () => ({
 
 vi.mock('../services/recruitmentService', () => ({
   getRecruitments: vi.fn(),
+  getRecruitmentById: vi.fn(),
+  getApplicationsForRecruitment: vi.fn(),
+}));
+
+vi.mock('../layouts/AppLayout', () => ({ AppLayout: Outlet }));
+vi.mock('../contexts/MyProfileProvider', () => ({
+  MyProfileProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 afterEach(cleanup);
@@ -482,6 +490,71 @@ describe('RecruitmentEditPage (모집글 수정 화면)', () => {
 });
 
 describe('ProjectsPage (내 프로젝트)', () => {
+  afterEach(() => window.history.replaceState(null, '', '/'));
+
+  it('내 프로젝트의 작성 버튼으로 실제 작성 라우트에 진입한다', async () => {
+    testAuth.user = { id: mockRecruitment.authorId };
+    vi.mocked(getRecruitments).mockResolvedValueOnce({ data: [], error: null });
+    vi.mocked(getRecruitmentById).mockResolvedValueOnce({
+      data: null,
+      error: { code: 'NOT_FOUND', message: '모집글을 찾을 수 없습니다.' },
+    });
+    window.history.replaceState(null, '', '/projects');
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('link', { name: '모집글 작성' }));
+
+    expect(window.location.pathname).toBe('/recruitments/create');
+    expect(await screen.findByRole('button', { name: '모집글 등록하기' })).toBeTruthy();
+    expect(screen.getByPlaceholderText(/약 2개월/)).toBeTruthy();
+    expect(getRecruitmentById).not.toHaveBeenCalled();
+    vi.mocked(getRecruitmentById).mockReset();
+  });
+
+  it('내 모집글 상세 링크로 실제 상세 라우트에 진입한다', async () => {
+    testAuth.user = { id: mockRecruitment.authorId };
+    vi.mocked(getRecruitments).mockResolvedValueOnce({ data: [mockRecruitment], error: null });
+    vi.mocked(getRecruitmentById).mockResolvedValueOnce({ data: mockRecruitment, error: null });
+    vi.mocked(getApplicationsForRecruitment).mockResolvedValueOnce({ data: [], error: null });
+    window.history.replaceState(null, '', '/projects');
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('link', { name: '모집글 상세보기' }));
+
+    expect(window.location.pathname).toBe('/recruitments/rec-test-1');
+    expect(await screen.findByText(mockRecruitment.content)).toBeTruthy();
+    expect(getRecruitmentById).toHaveBeenCalledWith('rec-test-1');
+  });
+
+  it('로딩과 오류 중에는 대시를 표시하고 재시도 성공 후 빈 목록에는 0개를 표시한다', async () => {
+    testAuth.user = { id: mockRecruitment.authorId };
+    vi.mocked(getRecruitments)
+      .mockResolvedValueOnce({ data: null, error: { code: 'QUERY_FAILED', message: '조회 실패' } })
+      .mockResolvedValueOnce({ data: [], error: null });
+
+    render(
+      <MemoryRouter>
+        <ProjectsPage />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('모집글을 불러오는 중입니다.')).toBeTruthy();
+    expect(screen.getByText('—')).toBeTruthy();
+
+    expect(await screen.findByText('모집글을 불러오지 못했어요.')).toBeTruthy();
+    expect(screen.getByText('—')).toBeTruthy();
+    expect(screen.queryByText('0개')).toBeNull();
+    expect(screen.queryByText('아직 작성한 모집글이 없습니다')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: '다시 시도' }));
+    expect(screen.getByText('모집글을 불러오는 중입니다.')).toBeTruthy();
+    expect(screen.getByText('—')).toBeTruthy();
+
+    expect(await screen.findByText('아직 작성한 모집글이 없습니다')).toBeTruthy();
+    expect(screen.getByText('0개')).toBeTruthy();
+    expect(screen.queryByText('—')).toBeNull();
+  });
+
   it('본인이 작성한 모집글만 표시하고 지원 내역은 준비 상태로 안내한다', async () => {
     testAuth.user = { id: mockRecruitment.authorId };
     vi.mocked(getRecruitments).mockResolvedValueOnce({
@@ -499,6 +572,7 @@ describe('ProjectsPage (내 프로젝트)', () => {
     );
 
     expect(await screen.findByText(mockRecruitment.title)).toBeTruthy();
+    expect(screen.getByText('1개')).toBeTruthy();
     expect(screen.queryByText('다른 학생의 모집글')).toBeNull();
     expect(screen.getByText('지원 내역 조회 기능을 준비하고 있어요.')).toBeTruthy();
   });
