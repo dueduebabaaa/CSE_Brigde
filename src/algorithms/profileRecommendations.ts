@@ -32,6 +32,10 @@ export interface ProfileRecommendationOptions {
    * 공고 제목 및 본문에서 키워드 태그 자동 추출·보완 여부 (기본값: true)
    */
   augmentTagsFromContent?: boolean;
+  /**
+   * 제목 및 본문에 명시된 접수 마감일이 기준 시각보다 과거인 경우 추천 후보에서 안전하게 제외할지 여부 (기본값: false)
+   */
+  filterExplicitTextDeadline?: boolean;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -150,7 +154,12 @@ export function getRecommendedOpportunitiesForProfile(
   const preparedOpportunities = opportunities.map((opp) => prepareOpportunity(opp, augment));
 
   // 4. 기존 공모전 맞춤 추천 알고리즘 실행
-  const rawMatches = recommendOpportunities(algorithmProfile, preparedOpportunities, currentDate);
+  const rawMatches = recommendOpportunities(
+    algorithmProfile,
+    preparedOpportunities,
+    currentDate,
+    { filterExplicitTextDeadline: options?.filterExplicitTextDeadline }
+  );
 
   // 공통 UI 결과에 공고 평가 가능 여부를 덧붙인다.
   return rawMatches.map((match) => ({ ...adaptOpportunityMatchToUi(match), evaluable: match.evaluable }));

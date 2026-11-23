@@ -517,5 +517,43 @@ describe('프로필-공고 추천 연결기 (getRecommendedOpportunitiesForProfi
       expect(resolved?.id).toBe('user-001');
       expect(resolved?.techStacks).toEqual(['React', 'TypeScript']);
     });
+
+    it('filterExplicitTextDeadline 옵션 적용 시 제목/본문에 지난 마감일이 명시된 공고를 안전하게 제외한다', () => {
+      const oppExpiredInTitle = createOpportunity({
+        id: 'opp-expired-title',
+        title: '클라우드 특강 (~11월 9일 13시 마감)',
+        status: 'needs_confirmation',
+        postedAt: '2026-11-05T15:00:00+00:00',
+        deadline: null,
+        tags: ['클라우드', 'Docker'],
+      });
+      const oppFutureInTitle = createOpportunity({
+        id: 'opp-future-title',
+        title: '클라우드 해커톤 (~11월 25일 18시 마감)',
+        status: 'needs_confirmation',
+        postedAt: '2026-11-05T15:00:00+00:00',
+        deadline: null,
+        tags: ['클라우드', 'Docker'],
+      });
+
+      const profile = createServiceProfile({
+        interests: ['클라우드'],
+        tech_stacks: ['Docker'],
+      });
+
+      // 기본 옵션: 둘 다 포함
+      const resDefault = getRecommendedOpportunitiesForProfile(profile, [oppExpiredInTitle, oppFutureInTitle], {
+        currentDate: referenceDate,
+      });
+      expect(resDefault).toHaveLength(2);
+
+      // filterExplicitTextDeadline: true 활성화 시 지난 마감일만 제외
+      const resFiltered = getRecommendedOpportunitiesForProfile(profile, [oppExpiredInTitle, oppFutureInTitle], {
+        currentDate: referenceDate,
+        filterExplicitTextDeadline: true,
+      });
+      expect(resFiltered).toHaveLength(1);
+      expect(resFiltered[0].targetId).toBe('opp-future-title');
+    });
   });
 });

@@ -25,17 +25,196 @@ export interface OpportunityMatchResult {
 }
 
 /**
+ * 공모전 추천 실행 옵션
+ */
+export interface RecommendOpportunitiesOptions {
+  /**
+   * deadline이 null인 공고 중 제목 또는 본문에 명시된 마감일시가 기준 시각보다 과거인 경우
+   * 추천 후보에서 안전하게 제외할지 여부 (기본값: false - 기존 DB deadline 기준 동작 보존)
+   */
+  filterExplicitTextDeadline?: boolean;
+}
+
+/**
+ * 텍스트(제목 및 설명)에서 명시적인 접수/신청/모집 마감일시를 엄격하게 추출합니다.
+ *
+ * [원칙]
+ * 1. '마감', '접수 마감', '신청 마감', '모집 마감' 등 명확한 마감 키워드와 결합된 날짜만 인식합니다.
+ * 2. '교육 기간', '행사 일시', '활동 기간' 등 행사 자체의 일정은 마감일로 오판하지 않습니다.
+ * 3. '선착순 마감', '추후 공지', '상시 모집' 등 구체적 일시가 없는 자연어는 null을 반환합니다.
+ * 4. 연도가 생략된 경우 postedAt의 연도를 기준으로 안전하게 보정하며, 기준이 불확실하면 null을 반환합니다.
+ * 5. 시간대는 한국 표준시(Asia/Seoul, UTC+9)를 기준으로 계산합니다.
+ * 6. 시간 단위가 생략된 경우 해당 일자의 마지막 순간(23:59:59.999 KST)으로 간주하여 조기 마감 오판을 방지합니다.
+ *
+ * @param title 공고 제목
+ * @param description 공고 설명 또는 본문
+ * @param postedAt 공고 게시 시각 (연도 추론 보조용)
+ * @returns 추출된 마감 Date 객체 (Asia/Seoul 기준 파싱) 또는 null
+ */
+export function extractExplicitDeadline(
+  title: string,
+  description?: string,
+  postedAt?: string | null
+): Date | null {
+  const text = `${title || ''} ${description || ''}`;
+  if (!text.trim()) return null;
+
+  // 비마감 일정 접두어 패턴: 행사/교육/활동 등의 자체 일정은 접수 마감일로 오판하지 않음
+  const periodPrefix = /(?:교육|행사|활동|운영|수업|연수|대회|진행|축제|캠프)\s*(?:기간|일시|일정)\s*[:：]?\s*$/i;
+
+  // 명시적 마감일 정규식 패턴 (한국어 공고에서 쓰이는 표준 형식)
+  // 패턴 1: (~|까지)? 날짜 (시각)? 마감
+  // 예: "~11월 9일 13시 마감", "~11.9.(월) 18:00 마감", "~2026.11.09 18시 마감", "~11/9 18:00 마감"
+  const patternBefore = /(?:~|(?<=[^가-힣a-zA-Z0-9]|^))(?:(\d{4})[년./-]\s*)?(\d{1,2})[월./-]\s*(\d{1,2})일?(?:\s*\([월화수목금토일]\))?\s*(?:(\d{1,2})시(?:\s*(\d{1,2})분)?|(\d{1,2}):(\d{2}))?\s*(?:까지)?\s*(?:(?:접수|신청|모집|지원|제출|최종)\s*마감|마감(?=[^가-힣a-zA-Z0-9]|$))/gi;
+
+  // 패턴 2: (접수|신청|모집|지원|제출|최종)? 마감:? (~|\b)? 날짜 (시각)?
+  // 예: "접수 마감: 11월 9일 18시", "신청 마감: 2026-11-09 23:59", "최종 마감: 11월 20일 18:00"
+  const patternAfter = /(?:접수|신청|모집|지원|제출|최종)?\s*마감\s*(?:일(?:시)?)?\s*[:：]\s*(?:~|\b)?\s*(?:(\d{4})[년./-]\s*)?(\d{1,2})[월./-]\s*(\d{1,2})일?(?:\s*\([월화수목금토일]\))?\s*(?:(\d{1,2})시(?:\s*(\d{1,2})분)?|(\d{1,2}):(\d{2}))?/gi;
+
+  // 보조 함수: 매칭 결과로부터 KST Date 객체 파싱
+  const parseMatchToDate = (matched: RegExpMatchArray): Date | null => {
+    const rawYear = matched[1];
+    const rawMonth = matched[2];
+    const rawDay = matched[3];
+    const rawHour = matched[4] ?? matched[6];
+    const rawMinute = matched[5] ?? matched[7];
+
+    const month = parseInt(rawMonth, 10);
+    const day = parseInt(rawDay, 10);
+    if (isNaN(month) || isNaN(day) || month < 1 || month > 12 || day < 1 || day > 31) {
+      return null;
+    }
+
+    let year: number;
+    if (rawYear) {
+      year = parseInt(rawYear, 10);
+      if (year < 2000 || year > 2100) return null;
+    } else if (postedAt) {
+      const parsedPosted = parseOpportunityTimestamp(postedAt);
+      if (parsedPosted) {
+        const postedDate = new Date(parsedPosted);
+        if (Number.isFinite(postedDate.getTime())) {
+          // Asia/Seoul 기준 연도 및 월 추출
+          const postedKst = new Date(postedDate.getTime() + 9 * 60 * 60 * 1000);
+          const postedYear = postedKst.getUTCFullYear();
+          const postedMonth = postedKst.getUTCMonth() + 1;
+          // 게시 시점이 연말(11~12월)이고 마감 월이 연초(1~2월)인 경우 다음 해로 처리
+          if (postedMonth >= 11 && month <= 2) {
+            year = postedYear + 1;
+          } else if (postedMonth <= 2 && month >= 11) {
+            // 게시 시점이 연초인데 마감 월이 연말이면 연도 추정이 모호하므로 null
+            return null;
+          } else if (Math.abs(month - postedMonth) > 6) {
+            // 게시월과 마감월 차이가 6개월 이상 벌어지면 연도 추정이 불확실하므로 null
+            return null;
+          } else {
+            year = postedYear;
+          }
+        } else {
+          return null;
+        }
+      } else {
+        return null;
+      }
+    } else {
+      return null;
+    }
+
+    const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+    const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    if (day > daysInMonth[month - 1]) return null;
+
+    const hasHour = rawHour !== undefined && rawHour !== null;
+    const hour = hasHour ? parseInt(rawHour, 10) : 23;
+    const minute = rawMinute !== undefined && rawMinute !== null ? parseInt(rawMinute, 10) : (hasHour ? 0 : 59);
+    const second = hasHour ? 0 : 59;
+    const millisecond = hasHour ? 0 : 999;
+
+    if (isNaN(hour) || isNaN(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+      return null;
+    }
+
+    // KST (UTC+9) Date 생성
+    const kstOffsetMs = 9 * 60 * 60 * 1000;
+    const localUtcMs = Date.UTC(year, month - 1, day, hour, minute, second, millisecond);
+    const deadlineMs = localUtcMs - kstOffsetMs;
+    const deadlineDate = new Date(deadlineMs);
+    return Number.isFinite(deadlineDate.getTime()) ? deadlineDate : null;
+  };
+
+  const parsedDates: Date[] = [];
+
+  for (const pattern of [patternBefore, patternAfter]) {
+    for (const match of text.matchAll(pattern)) {
+      const index = match.index ?? 0;
+      const preceding = text.slice(Math.max(0, index - 25), index);
+      if (periodPrefix.test(preceding)) continue;
+
+      // 해석할 수 없는 마감일이 있으면 다른 날짜만으로 마감 여부를 확정하지 않는다.
+      const parsed = parseMatchToDate(match);
+      if (!parsed) return null;
+      parsedDates.push(parsed);
+    }
+  }
+
+  if (parsedDates.length === 0) return null;
+
+  // 복수의 마감일이 존재할 경우 가장 늦은 마감일을 채택하여 조기 마감 오판 방지
+  return parsedDates.reduce((latest, current) => (current.getTime() > latest.getTime() ? current : latest), parsedDates[0]);
+}
+
+/**
+ * 공고의 deadline이 null인 경우에도, 제목 또는 설명에 명시된 접수 마감일이
+ * 기준 시각(currentDate)보다 확실하게 과거인지 판정합니다.
+ *
+ * @param opp 검사할 공고 객체
+ * @param currentDate 기준 시각
+ * @returns 명시된 마감일이 존재하고 기준 시각보다 과거인 경우 true, 그 외(마감일 없거나 미래이거나 모호한 경우) false
+ */
+export function isExplicitlyExpiredInText(opp: Opportunity, currentDate: Date): boolean {
+  if (!opp || opp.deadline !== null) {
+    return false;
+  }
+  if (!Number.isFinite(currentDate.getTime())) {
+    return false;
+  }
+  const explicitDeadline = extractExplicitDeadline(opp.title, opp.description, opp.postedAt);
+  if (!explicitDeadline) {
+    return false;
+  }
+  return explicitDeadline.getTime() < currentDate.getTime();
+}
+
+/**
+ * 공고 목록에서 제목/본문에 명시된 마감일이 이미 지난 공고만 순수하게 필터링하여 제외합니다.
+ * 모호한 표현, 행사 기간, 마감일 미정 공고는 그대로 보존합니다.
+ *
+ * @param opportunities 공고 목록
+ * @param currentDate 기준 시각 (기본값: 현재 시각)
+ * @returns 마감 경과 공고가 안전하게 제외된 새 공고 배열
+ */
+export function filterOpportunitiesByExplicitDeadline(
+  opportunities: Opportunity[],
+  currentDate: Date = new Date()
+): Opportunity[] {
+  if (!Array.isArray(opportunities)) return [];
+  return opportunities.filter((opp) => !isExplicitlyExpiredInText(opp, currentDate));
+}
+
+/**
  * 공모전 맞춤 추천 메인 함수
  *
  * @param userProfile 학생의 프로필 정보 (관심 분야, 보유 기술, 학습 희망 기술)
  * @param opportunities 평가 대상 공모전 배열 (원본 배열을 수정하지 않음)
  * @param currentDate 마감일 판단을 위한 기준 시각 (테스트 시 주입 가능, 기본값: 현재 시각)
+ * @param options 추가 옵션 (명시적 텍스트 마감일 필터링 등)
  * @returns 적합도 점수가 높은 순으로 정렬된 공모전 추천 결과 목록
  */
 export function recommendOpportunities(
   userProfile: UserProfile,
   opportunities: Opportunity[],
-  currentDate: Date = new Date()
+  currentDate: Date = new Date(),
+  options?: RecommendOpportunitiesOptions
 ): (OpportunityMatchResult & { evaluable: boolean })[] {
   if (!opportunities || opportunities.length === 0) {
     return [];
@@ -46,7 +225,7 @@ export function recommendOpportunities(
   // - closed, draft: 제외
   // - postedAt이 기준 시각보다 미래인 게시 전 공고: 제외
   // - deadline이 실제로 지난 공고: 상태와 관계없이 제외
-  // - deadline이 null인 경우: 마감 조건을 적용하지 않음
+  // - deadline이 null인 경우: 마감 조건을 적용하지 않음 (단, filterExplicitTextDeadline=true 시 명시적 과거 마감일 제외)
   // - applicationStart가 미래인 공고: 게시 완료(postedAt <= currentDate) 상태이면 모집 예정으로 추천 허용
   const candidates = opportunities.filter((opp) => {
     if (opp.status !== 'active' && opp.status !== 'needs_confirmation') return false;
@@ -57,6 +236,8 @@ export function recommendOpportunities(
     if (opp.deadline !== null) {
       const deadline = parseOpportunityTimestamp(opp.deadline);
       if (!deadline || Date.parse(deadline) < currentDate.getTime()) return false;
+    } else if (options?.filterExplicitTextDeadline) {
+      if (isExplicitlyExpiredInText(opp, currentDate)) return false;
     }
     return true;
   });
