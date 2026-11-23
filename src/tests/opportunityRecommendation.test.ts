@@ -751,6 +751,15 @@ describe('공모전 맞춤 추천 알고리즘 (recommendOpportunities)', () => 
         expect(recommendOpportunities(student, [openInDb], now, options)).toHaveLength(1);
       });
 
+      it.each([
+        ['접수 마감: 2026-11-23 08:00 UTC', '2026-11-23T17:00:00+09:00'],
+        ['접수 마감: 11월 23일 오후 6시', '2026-11-23T18:00:00+09:00'],
+        ['접수 마감: 11월 23일 6:00 PM', '2026-11-23T18:00:00+09:00'],
+      ])('원본 시각 표기 %s의 마감을 정확히 해석한다', (title, expected) => {
+        const postedAt = '2026-11-01T00:00:00+09:00';
+        expect(extractExplicitDeadline(title, '', postedAt)).toEqual(new Date(expected));
+      });
+
       it('제목/본문에서 한국어 마감일 표기를 정확하게 파싱하여 KST 기준 Date를 반환해야 한다', () => {
         // 1) B의 실제 수집 공고 제목 표본 (~11월 9일 13시 마감)
         const date1 = extractExplicitDeadline(
