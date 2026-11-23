@@ -4,7 +4,7 @@ import { ArrowUpRight, LayoutGrid, List, Search, SlidersHorizontal } from 'lucid
 import { Button, EmptyState, LoadingState } from '../ui';
 import { ConnectionGraphic } from '../dashboard/DashboardCards';
 import { DemoNotice, OpportunityTile, RecommendationStatus } from './OpportunityUI';
-import { CATEGORIES, DEFAULT_FILTERS, evaluationMap, filterOpportunities, opportunityStatus, publicOpportunities, readFilters, recommendationMap, STATUS_LABELS } from './opportunityModel';
+import { CATEGORIES, DEFAULT_FILTERS, evaluationMap, filterOpportunities, publicOpportunities, readFilters, recommendationMap, STATUS_LABELS } from './opportunityModel';
 import type { ExploreFilters, OpportunitySource } from './opportunityModel';
 
 const selectClass = 'mt-1 w-full min-w-0 min-h-11 rounded-lg border border-[#E2E8F0] bg-white px-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#7D39EB]';
@@ -40,7 +40,7 @@ export function OpportunityExplorer({ opportunities, matches = [], loading, erro
     setParams(query, { replace: true });
   };
   const stats = [
-    { label: '모집 중인 공고', count: items.filter((item) => opportunityStatus(item, now) === 'open').length, style: 'bg-white text-[#0F172A] border-[#E2E8F0]', onClick: () => change({ status: 'open' }), disabled: false },
+    { label: '전체 공고', count: items.length, style: 'bg-white text-[#0F172A] border-[#E2E8F0]', onClick: reset, disabled: false },
     { label: '추천 공고', count: items.filter((item) => suppliedMatches.has(item.id)).length, style: 'bg-[#7D39EB] text-white border-[#7D39EB]', onClick: () => change({ recommended: true, sort: 'recommended' }), disabled: !hasRecommendations },
   ];
   return <div className="min-w-0 space-y-5 sm:space-y-7">

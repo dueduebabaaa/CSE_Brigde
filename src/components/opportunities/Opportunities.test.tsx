@@ -84,6 +84,7 @@ describe('탐색 화면 동작', () => {
   it('추천 미제공·로딩·조회 실패·데이터 없음 상태를 구분한다', () => {
     const { rerender } = render(<MemoryRouter><OpportunityExplorer opportunities={[]} now={now} /></MemoryRouter>);
     expect(screen.getByText('아직 등록된 공고가 없어요')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /전체 공고/ }).textContent).toBe('전체 공고0');
     expect(screen.getByRole('button', { name: /추천 공고/ }).textContent).toContain('—');
     expect((screen.getByRole('checkbox', { name: '추천 공고만 보기' }) as HTMLInputElement).disabled).toBe(true);
     expect((screen.getByRole('option', { name: '추천순' }) as HTMLOptionElement).disabled).toBe(true);
@@ -92,8 +93,10 @@ describe('탐색 화면 동작', () => {
     expect(screen.queryByText('검색 결과 0개')).toBeNull();
     rerender(<MemoryRouter><OpportunityExplorer loading now={now} /></MemoryRouter>);
     expect(screen.getByRole('status', { name: '공고 불러오는 중' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /전체 공고/ }).textContent).toContain('—');
     const retry = vi.fn();
     rerender(<MemoryRouter><OpportunityExplorer error="failed" onRetry={retry} now={now} /></MemoryRouter>);
+    expect(screen.getByRole('button', { name: /전체 공고/ }).textContent).toContain('—');
     fireEvent.click(screen.getByRole('button', { name: '다시 시도' }));
     expect(retry).toHaveBeenCalledOnce();
     expect(screen.queryByText('아직 등록된 공고가 없어요')).toBeNull();

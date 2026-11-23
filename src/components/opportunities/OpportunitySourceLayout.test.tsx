@@ -87,6 +87,7 @@ describe('실제 데이터 형식의 공고 추천 라우트', () => {
     expect(screen.queryByText(/개발용 예시 데이터|가상 예시/)).toBeNull();
 
     fireEvent.click(screen.getByRole('link', { name: '전체 공고: 3' }));
+    expect(screen.getByRole('button', { name: /전체 공고/ }).textContent).toBe('전체 공고3');
     const cards = screen.getAllByRole('article');
     const reactCard = cards.find((card) => card.textContent?.includes('리액트 실제 공고'))!;
     expect(within(reactCard).getAllByText(score).length).toBeGreaterThan(0);
@@ -102,7 +103,7 @@ describe('실제 데이터 형식의 공고 추천 라우트', () => {
     expect(mocks.opportunityRows).toHaveBeenCalledOnce();
   });
 
-  it('PostgreSQL 시각 표기의 일정 확인 중 공고도 추천되며 모집 중 집계에서는 빠진다', async () => {
+  it('PostgreSQL 시각 표기의 일정 확인 중 공고도 추천과 탐색의 전체 공고에 포함된다', async () => {
     const notice = { ...rows[2], posted_at: '2020-01-01 00:00:00+00' };
     mocks.opportunityRows.mockResolvedValue({ data: [notice], error: null });
 
@@ -111,7 +112,7 @@ describe('실제 데이터 형식의 공고 추천 라우트', () => {
     expect(screen.getByRole('link', { name: '전체 공고: 1' })).toBeTruthy();
 
     fireEvent.click(screen.getByRole('link', { name: '탐색으로 이동' }));
-    expect(screen.getByRole('button', { name: /모집 중인 공고/ }).textContent).toContain('0');
+    expect(screen.getByRole('button', { name: /전체 공고/ }).textContent).toBe('전체 공고1');
     expect(screen.getByRole('option', { name: '추천순' })).toHaveProperty('disabled', false);
     const card = screen.getByRole('article');
     const graphic = card.querySelector('svg[viewBox="0 0 150 85"]');
@@ -124,6 +125,55 @@ describe('실제 데이터 형식의 공고 추천 라우트', () => {
 
     fireEvent.click(within(screen.getByRole('article')).getByRole('link', { name: '상세 보기' }));
     expect(within(screen.getByRole('region', { name: '추천 이유' })).getByText('추천 적합도 100%')).toBeTruthy();
+  });
+
+  it('새 응답으로 목록과 집계를 갱신하되 열어 둔 탐색 화면은 자동 재조회하지 않는다', async () => {
+    const initialRows = [
+      ...rows,
+      ...Array.from({ length: 6 }, (_, index) => ({ ...rows[0], id: `closed-${index}`, title: `공개 마감 공고 ${index}` })),
+      { ...rows[1], id: 'draft', status: 'draft' },
+      { ...rows[1], id: 'future', posted_at: '2999-01-01T00:00:00Z' },
+    ];
+    const allCount = () => screen.getByRole('button', { name: /전체 공고/ }).textContent;
+    const recommendedCount = () => screen.getByRole('button', { name: /추천 공고/ }).textContent;
+    mocks.opportunityRows.mockResolvedValue({ data: initialRows, error: null });
+    const initial = render(<TestRoutes initialEntry="/opportunities" />);
+    await screen.findByText('검색 결과 9개');
+    expect(allCount()).toBe('전체 공고9');
+    expect(recommendedCount()).toBe('추천 공고1');
+
+    fireEvent.change(screen.getByRole('textbox', { name: '공고 검색' }), { target: { value: '리액트' } });
+    expect(screen.getByText('검색 결과 1개')).toBeTruthy();
+    expect(allCount()).toBe('전체 공고9');
+    fireEvent.click(screen.getByRole('button', { name: /전체 공고/ }));
+    expect(screen.getByText('검색 결과 9개')).toBeTruthy();
+
+    const tenRows = [...initialRows, { ...rows[1], id: 'new-unmatched', title: '새 파이썬 공고' }];
+    mocks.opportunityRows.mockResolvedValue({ data: tenRows, error: null });
+    fireEvent.focus(window);
+    await act(async () => {});
+    expect(mocks.opportunityRows).toHaveBeenCalledOnce();
+    expect(screen.getByText('검색 결과 9개')).toBeTruthy();
+
+    initial.unmount();
+    const refreshed = render(<TestRoutes initialEntry="/opportunities" />);
+    await screen.findByText('검색 결과 10개');
+    expect(allCount()).toBe('전체 공고10');
+    expect(recommendedCount()).toBe('추천 공고1');
+
+    mocks.opportunityRows.mockResolvedValue({
+      data: [
+        ...tenRows,
+        { ...rows[2], id: 'new-matched', title: '새 리액트 공고' },
+        ...Array.from({ length: 4 }, (_, index) => ({ ...rows[0], id: 'new-closed-' + index })),
+      ], error: null,
+    });
+    refreshed.unmount();
+    render(<TestRoutes initialEntry="/opportunities" />);
+    await screen.findByText('검색 결과 15개');
+    expect(allCount()).toBe('전체 공고15');
+    expect(recommendedCount()).toBe('추천 공고2');
+    expect(mocks.opportunityRows).toHaveBeenCalledTimes(3);
   });
 
   it('추천순에서 실제 점수로 정렬하고 추천 필터와 검색을 조합한다', async () => {
