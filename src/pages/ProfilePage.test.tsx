@@ -8,11 +8,24 @@ import { ProfilePage } from './ProfilePage';
 import { HomePage } from './HomePage';
 import { OpportunitySourceLayout } from '../components/opportunities/OpportunitySourceLayout';
 import { profileFixture } from '../features/profile/profileFixture';
+import {
+  deleteMyRecruitmentContact, enableMyRecruitmentContactSharing, getMyRecruitmentContact, RecruitmentContactConflict, revokeMyRecruitmentContactSharing, saveMyRecruitmentContact,
+} from '../services/recruitmentContactService';
 import type { UserProfile } from '../services/profileService';
 const mocks = vi.hoisted(() => ({ auth: { user: { id: 'user-a' } as { id: string } | null, loading: false }, fetch: vi.fn(), update: vi.fn() }));
 vi.mock('../hooks/useAuth', () => ({ useAuth: () => mocks.auth }));
 vi.mock('../services/profileService', () => ({ fetchMyProfile: mocks.fetch, updateMyProfile: mocks.update }));
 vi.mock('../services/opportunityService', () => ({ fetchOpportunities: async () => [] }));
+vi.mock('../services/recruitmentContactService', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../services/recruitmentContactService')>(),
+  deleteMyRecruitmentContact: vi.fn(),
+  getMyRecruitmentContact: vi.fn(),
+  enableMyRecruitmentContactSharing: vi.fn(),
+  revokeMyRecruitmentContactSharing: vi.fn(),
+  saveMyRecruitmentContact: vi.fn(),
+}));
+beforeEach(() => { vi.mocked(getMyRecruitmentContact).mockReset().mockResolvedValue({ kakaoId: null, sharingEnabled: false, revision: 'empty' }); });
+
 const deferred = <T,>() => { let resolve!: (value: T) => void; let reject!: (value: unknown) => void; const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
 function TestApp() {
   return <MemoryRouter><MyProfileProvider>
@@ -30,6 +43,52 @@ beforeEach(() => { mocks.auth = { user: { id: 'user-a' }, loading: false }; mock
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe('마이페이지 실제 서비스 연동', () => {
+  it('ID 저장과 새 공유 동의를 분리하고 철회 및 삭제를 처리한다', async () => {
+    const get = vi.mocked(getMyRecruitmentContact);
+    get.mockResolvedValueOnce({ kakaoId: null, sharingEnabled: false, revision: 'initial' })
+      .mockResolvedValueOnce({ kakaoId: 'fixture-contact', sharingEnabled: false, revision: 'registered' })
+      .mockResolvedValueOnce({ kakaoId: 'fixture-contact', sharingEnabled: true, revision: 'enabled' })
+      .mockResolvedValueOnce({ kakaoId: 'fixture-contact', sharingEnabled: false, revision: 'revoked' })
+      .mockResolvedValueOnce({ kakaoId: null, sharingEnabled: false, revision: 'deleted' });
+    render(<TestApp />);
+    const settings = () => within(screen.getByRole('form', { name: '카카오톡 연락처 설정' }));
+    await screen.findByLabelText('카카오톡 ID');
+    expect(settings().queryByRole('checkbox')).toBeNull();
+    fireEvent.change(settings().getByLabelText('카카오톡 ID'), { target: { value: 'fixture-contact' } });
+    fireEvent.click(settings().getByRole('button', { name: '연락처 저장' }));
+    expect(saveMyRecruitmentContact).toHaveBeenCalledWith('fixture-contact', 'initial');
+
+    const consent = await screen.findByRole<HTMLInputElement>('checkbox', { name: /공유하는 데 동의/ });
+    expect(consent.checked).toBe(false);
+    fireEvent.click(consent);
+    fireEvent.click(settings().getByRole('button', { name: '공유 동의 저장' }));
+    expect(enableMyRecruitmentContactSharing).toHaveBeenCalledWith('registered');
+
+    fireEvent.click(await screen.findByRole('button', { name: '공유 동의 철회' }));
+    expect((await screen.findByRole<HTMLInputElement>('checkbox', { name: /공유하는 데 동의/ })).checked).toBe(false);
+    expect(revokeMyRecruitmentContactSharing).toHaveBeenCalledTimes(1);
+    fireEvent.click(settings().getByRole('button', { name: '연락처 삭제' }));
+    await waitFor(() => expect(screen.getByLabelText<HTMLInputElement>('카카오톡 ID').value).toBe(''));
+    expect(deleteMyRecruitmentContact).toHaveBeenCalledTimes(1);
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])('다른 탭의 변경 후 오래된 ID 저장을 자동 재시도하지 않는다 (삭제=%s)', async (deleted) => {
+    vi.mocked(getMyRecruitmentContact)
+      .mockResolvedValueOnce({ kakaoId: 'fixture-contact', sharingEnabled: true, revision: 'stale' })
+      .mockResolvedValueOnce({ kakaoId: deleted ? null : 'fixture-contact', sharingEnabled: false, revision: 'fresh' });
+    vi.mocked(saveMyRecruitmentContact).mockRejectedValueOnce(new RecruitmentContactConflict());
+    render(<TestApp />);
+    const input = await screen.findByLabelText('카카오톡 ID');
+    fireEvent.change(input, { target: { value: 'stale-edit' } });
+    fireEvent.click(screen.getByRole('button', { name: '연락처 저장' }));
+    await screen.findByText(/다른 화면에서 연락처 설정이 변경/);
+    expect((await screen.findByLabelText<HTMLInputElement>('카카오톡 ID')).value).toBe(deleted ? '' : 'fixture-contact');
+    expect(saveMyRecruitmentContact).toHaveBeenCalledTimes(1);
+    expect(saveMyRecruitmentContact).toHaveBeenCalledWith('stale-edit', 'stale');
+    expect(enableMyRecruitmentContactSharing).not.toHaveBeenCalled();
+  });
+
   it.each(['', '   '])('닉네임 삭제·공백(%j)을 빈 문자열로 저장하고 홈에서 이름을 표시한다', async nickname => {
     render(<TestApp />); await loaded(); edit('닉네임', nickname); save();
     await screen.findByText('프로필 변경 사항을 저장했습니다.');

@@ -15,6 +15,7 @@ import { RecruitmentEditPage } from './RecruitmentEditPage';
 import { App } from '../App';
 import { ProjectsPage } from './ProjectsPage';
 import { getApplicationsForRecruitment, getMyRecruitmentApplications, getRecruitmentById, getRecruitments, type MyRecruitmentApplication } from '../services/recruitmentService';
+import { getAcceptedApplicationContact } from '../services/recruitmentContactService';
 import type { Application, Recruitment } from '../types';
 
 const testAuth = vi.hoisted(() => ({
@@ -50,7 +51,15 @@ vi.mock('../contexts/MyProfileProvider', () => ({
   MyProfileProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-afterEach(cleanup);
+vi.mock('../services/recruitmentContactService', () => ({
+  getAcceptedApplicationContact: vi.fn(),
+}));
+
+afterEach(() => {
+  cleanup();
+  vi.mocked(getAcceptedApplicationContact).mockReset();
+  vi.unstubAllGlobals();
+});
 
 const mockRecruitment: Recruitment = {
   id: 'rec-test-1',
@@ -345,7 +354,77 @@ describe('RecruitmentDetailPage (모집 상세 및 지원 화면)', () => {
   });
 });
 
+describe('수락된 지원 연락처', () => {
+  function loadContactPage(userId: string, applications: Application[]) {
+    testAuth.user = { id: userId };
+    const source = createMockSource();
+    vi.mocked(source.getApplicationsForRecruitment).mockResolvedValue(applications);
+    render(
+      <MemoryRouter initialEntries={['/recruitments/rec-test-1']}>
+        <Routes><Route path="/recruitments/:id" element={<RecruitmentDetailPage source={source} />} /></Routes>
+      </MemoryRouter>
+    );
+  }
+
+  it('지원자는 수락된 자신의 지원 건을 사용해 상대방 연락처를 조회하고 복사한다', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal('navigator', Object.create(navigator, { clipboard: { value: { writeText } } }));
+    vi.mocked(getAcceptedApplicationContact)
+      .mockResolvedValueOnce('author-fixture')
+      .mockResolvedValueOnce(null);
+    loadContactPage(mockApplication.applicantId, [{ ...mockApplication, status: 'accepted' }]);
+
+    const reveal = await screen.findByRole('button', { name: '연락처 확인' });
+    expect(getAcceptedApplicationContact).not.toHaveBeenCalled();
+    fireEvent.click(reveal);
+    expect(await screen.findByText('카카오톡 ID author-fixture')).toBeTruthy();
+    expect(getAcceptedApplicationContact).toHaveBeenCalledWith(mockApplication.id);
+    fireEvent.click(screen.getByRole('button', { name: '카카오톡 ID 복사' }));
+    await screen.findByText('카카오톡 ID를 복사했어요.');
+    expect(writeText).toHaveBeenCalledWith('author-fixture');
+
+    fireEvent.click(reveal);
+    await screen.findByText(/두 사람 모두 카카오톡 ID/);
+    expect(screen.queryByText('카카오톡 ID author-fixture')).toBeNull();
+  });
+
+  it('작성자는 수락된 지원의 연락처만 요청하고 미수락 지원은 기존 승인 UI를 유지한다', async () => {
+    vi.mocked(getAcceptedApplicationContact).mockResolvedValue('applicant-fixture');
+    loadContactPage(mockRecruitment.authorId, [
+      mockApplication,
+      { ...mockApplication, id: 'accepted-app', applicantId: 'other-applicant', status: 'accepted' },
+      { ...mockApplication, id: 'rejected-app', applicantId: 'rejected-applicant', status: 'rejected' },
+    ]);
+    expect(await screen.findByRole('button', { name: '승인' })).toBeTruthy();
+    const reveal = screen.getByRole('button', { name: '연락처 확인' });
+    fireEvent.click(reveal);
+    expect(await screen.findByText('카카오톡 ID applicant-fixture')).toBeTruthy();
+    expect(getAcceptedApplicationContact).toHaveBeenCalledWith('accepted-app');
+  });
+
+  it('수락된 다른 지원자의 연락처 버튼은 표시하지 않는다', async () => {
+    loadContactPage('unrelated-user', [{ ...mockApplication, status: 'accepted' }]);
+    expect(await screen.findByText(mockRecruitment.content)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '연락처 확인' })).toBeNull();
+    expect(getAcceptedApplicationContact).not.toHaveBeenCalled();
+  });
+});
+
 describe('RecruitmentCreatePage (모집글 작성 화면)', () => {
+  it('기존 작성 주소는 실제 작성 폼에 연결한다', async () => {
+    testAuth.user = { id: mockRecruitment.authorId };
+    window.history.replaceState(null, '', '/recruitments/create');
+    try {
+      render(<App />);
+
+      expect(await screen.findByRole('button', { name: '모집글 등록하기' })).toBeTruthy();
+      expect(screen.getByPlaceholderText(/약 2개월/)).toBeTruthy();
+    } finally {
+      cleanup();
+      window.history.replaceState(null, '', '/');
+    }
+  });
+
   it('서비스 미연결 시 준비 상태를 표시한다', () => {
     render(
       <MemoryRouter>

@@ -24,6 +24,7 @@ vi.mock('../services/profileService', () => ({
 }));
 
 import { AppLayout } from './AppLayout';
+import { LoginPage } from '../pages/LoginPage';
 
 function renderRoutes(initialEntry: string) {
   return render(
@@ -47,6 +48,21 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe('AppLayout 인증 및 회원 분기', () => {
+  it.each(['/?error=access_denied', '/#error_code=access_denied'])('OAuth error (%s) reaches the login screen', async (path) => {
+    appMocks.user = null;
+    render(
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route element={<AppLayout />}>
+            <Route path="/" element={<div />} />
+            <Route path="/login" element={<LoginPage />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    );
+    expect((await screen.findByRole('alert')).textContent).toMatch(/Google/);
+  });
+
   it('미로그인 사용자는 내부 경로 대신 로그인으로 이동한다', async () => {
     appMocks.user = null;
     renderRoutes('/');

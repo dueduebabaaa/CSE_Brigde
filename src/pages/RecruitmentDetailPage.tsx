@@ -25,6 +25,7 @@ import {
   recruitmentStatusLabels,
   type RecruitmentSource,
 } from '../features/recruitments/recruitmentModel';
+import { AcceptedApplicationContact } from '../features/recruitments/AcceptedApplicationContact';
 import type { Application, Recruitment } from '../types';
 
 export const RecruitmentDetailPage: React.FC<{ source?: RecruitmentSource | null }> = ({
@@ -460,6 +461,9 @@ export const RecruitmentDetailPage: React.FC<{ source?: RecruitmentSource | null
                         {app.message}
                       </p>
 
+                      {app.status === 'accepted' && recruitment.status !== 'cancelled' && (
+                        <AcceptedApplicationContact key={`${currentUserId}:${app.id}`} applicationId={app.id} />
+                      )}
                       {app.status === 'pending' && (
                         <div className="flex justify-end gap-2 pt-1">
                           <Button
@@ -519,6 +523,9 @@ export const RecruitmentDetailPage: React.FC<{ source?: RecruitmentSource | null
                     작성자가 지원서를 검토한 후 승인 여부를 결정합니다.
                   </p>
                 </div>
+                {myApplication.status === 'accepted' && recruitment.status !== 'cancelled' && (
+                  <AcceptedApplicationContact key={`${currentUserId}:${myApplication.id}`} applicationId={myApplication.id} />
+                )}
               </div>
             ) : isOpen ? (
               /* 지원 가능 상태 */
