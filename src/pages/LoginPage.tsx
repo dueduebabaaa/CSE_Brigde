@@ -7,7 +7,7 @@ import {
   Sparkles,
   AlertCircle,
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { checkGoogleOAuthAvailability, supabase } from '../lib/supabase';
 
 export const LoginPage: React.FC = () => {
   const location = useLocation();
@@ -19,6 +19,8 @@ export const LoginPage: React.FC = () => {
     const state = location.state;
     if (typeof state === 'object' && state !== null && 'authStatus' in state && state.authStatus === 'school_failed') {
       setErrorMessage('경북대학교 학교 이메일 인증을 확인하지 못해 로그아웃했습니다. @knu.ac.kr 계정으로 다시 로그인해 주세요.');
+    } else if (typeof state === 'object' && state !== null && 'oauthFailed' in state && state.oauthFailed === true) {
+      setErrorMessage('Google ??? ???? ?????. ?? ???? ?? ??? ???.');
     }
   }, [location.state]);
 
@@ -47,24 +49,34 @@ export const LoginPage: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
+      const availability = await checkGoogleOAuthAvailability();
+      if (availability === 'invalid_key') {
+        setErrorMessage('Supabase가 공개 키를 거부했습니다. 현재 프로젝트의 publishable 키를 확인해 주세요.');
+        return;
+      }
+      if (availability === 'disabled') {
+        setErrorMessage('Supabase에서 Google 로그인이 비활성화되어 있습니다.');
+        return;
+      }
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          queryParams: {
-            login_hint: fullEmail,
-          },
+          queryParams: { login_hint: fullEmail },
           redirectTo: `${window.location.origin}/`,
+          skipBrowserRedirect: true,
         },
       });
 
-      if (error) {
-        console.error('Google OAuth 요청 실패:', error);
-        setErrorMessage('Google 로그인 요청에 실패했습니다. 다시 시도해 주세요.');
-        setIsSubmitting(false);
+      if (error || !data?.url) {
+        setErrorMessage('Google 로그인 페이지를 열 수 없습니다. 다시 시도해 주세요.');
+        return;
       }
-    } catch (error) {
-      console.error('Google 로그인 오류:', error);
-      setErrorMessage('로그인 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+
+      window.location.assign(data.url);
+    } catch {
+      setErrorMessage('Google 로그인을 시작하지 못했습니다. 연결 상태를 확인하고 다시 시도해 주세요.');
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -242,7 +254,7 @@ export const LoginPage: React.FC = () => {
               </div>
 
               {errorMessage && (
-                <p className="text-xs text-rose-400 mt-2 flex items-center gap-1.5 font-medium">
+                <p role="alert" className="text-xs text-rose-400 mt-2 flex items-center gap-1.5 font-medium">
                   <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                   {errorMessage}
                 </p>

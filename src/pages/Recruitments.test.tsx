@@ -409,6 +409,20 @@ describe('수락된 지원 연락처', () => {
 });
 
 describe('RecruitmentCreatePage (모집글 작성 화면)', () => {
+  it('기존 작성 주소는 실제 작성 폼에 연결한다', async () => {
+    testAuth.user = { id: mockRecruitment.authorId };
+    window.history.replaceState(null, '', '/recruitments/create');
+    try {
+      render(<App />);
+
+      expect(await screen.findByRole('button', { name: '모집글 등록하기' })).toBeTruthy();
+      expect(screen.getByPlaceholderText(/약 2개월/)).toBeTruthy();
+    } finally {
+      cleanup();
+      window.history.replaceState(null, '', '/');
+    }
+  });
+
   it('서비스 미연결 시 준비 상태를 표시한다', () => {
     render(
       <MemoryRouter>
@@ -563,13 +577,14 @@ describe('ProjectsPage (내 프로젝트)', () => {
 
   afterEach(() => window.history.replaceState(null, '', '/'));
 
-  it('기존 작성 주소는 실제 작성 폼에 연결한다', async () => {
+  it('내 프로젝트 헤더에서 모집글 작성 버튼을 표시하지 않는다', async () => {
     testAuth.user = { id: mockRecruitment.authorId };
-    window.history.replaceState(null, '', '/recruitments/create');
+    vi.mocked(getRecruitments).mockResolvedValueOnce({ data: [], error: null });
+    window.history.replaceState(null, '', '/projects');
     render(<App />);
 
-    expect(await screen.findByRole('button', { name: '모집글 등록하기' })).toBeTruthy();
-    expect(screen.getByPlaceholderText(/약 2개월/)).toBeTruthy();
+    await screen.findByText('아직 작성한 모집글이 없습니다');
+    expect(screen.queryByRole('link', { name: '모집글 작성' })).toBeNull();
   });
 
   it('내 모집글 상세 링크로 실제 상세 라우트에 진입한다', async () => {

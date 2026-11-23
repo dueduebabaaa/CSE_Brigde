@@ -292,7 +292,11 @@ export const AppLayout: React.FC = () => {
 
   // 로그인하지 않은 사용자의 내부 페이지 접근 차단
   if (!isLoggedIn && !isLoginPage) {
-    return <Navigate to="/login" replace state={{ authStatus }} />;
+    const oauthFailed = location.pathname === '/' && [location.search, location.hash.slice(1)].some((query) => {
+      const params = new URLSearchParams(query);
+      return params.has('error') || params.has('error_code');
+    });
+    return <Navigate to="/login" replace state={{ authStatus, oauthFailed }} />;
   }
 
   // 이미 로그인한 사용자가 로그인 화면에 접근하는 경우
