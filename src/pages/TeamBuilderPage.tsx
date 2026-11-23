@@ -59,11 +59,11 @@ export function TeamBuilderPage() {
             <h2 className="text-sm font-bold text-[#0F172A]">팀 구성 ({members.length}명)</h2>
             <Button type="button" variant="lime" size="sm" onClick={addMember} leftIcon={<Plus size={15} aria-hidden="true" />}>팀원 추가</Button>
           </div>
-          {members.map((member) => (
+          {members.map((member, index) => (
             <fieldset key={member.id} className="min-w-0 space-y-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
-              <legend className="px-1 text-sm font-bold">팀원 {member.id}</legend>
+              <legend className="px-1 text-sm font-bold">팀원 {index + 1}</legend>
               <div className="flex justify-end">
-                <Button type="button" variant="ghost" size="sm" aria-label={`팀원 ${member.id} 삭제`}
+                <Button type="button" variant="ghost" size="sm" aria-label={`팀원 ${index + 1} 삭제`}
                   onClick={() => setMembers((previous) => previous.filter(({ id }) => id !== member.id))}>삭제</Button>
               </div>
               <Input id={`${pageId}-${member.id}-name`} label="이름 또는 별칭" value={member.name} onChange={(event) => updateMember(member.id, 'name', event.target.value)} />
