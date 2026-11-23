@@ -1,144 +1,113 @@
-import React, { useState } from 'react';
-import { Sparkles, Users, AlertCircle, Plus, Save } from 'lucide-react';
-import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
-import { PlaceholderCard } from '../components/PlaceholderCard';
+import { useId, useRef, useState } from 'react';
+import { Plus } from 'lucide-react';
+import { PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar, RadarChart, ResponsiveContainer } from 'recharts';
+import { analyzeTeamBalanceForRoles } from '../algorithms/teamAnalyzer';
+import { Button, Card, Input, PageHeader } from '../components/ui';
+import type { UserProfile } from '../types';
 
-// 역량 시각화용 샘플 레이더 차트 데이터
-const RADAR_DATA = [
-  { subject: 'Frontend', A: 85, fullMark: 100 },
-  { subject: 'Backend', A: 40, fullMark: 100 },
-  { subject: 'Database', A: 45, fullMark: 100 },
-  { subject: 'AI/Data', A: 30, fullMark: 100 },
-  { subject: 'DevOps', A: 20, fullMark: 100 },
-  { subject: 'UI/UX', A: 75, fullMark: 100 },
-];
+interface MemberInput {
+  id: number;
+  name: string;
+  roles: string;
+  skills: string;
+}
 
-export const TeamBuilderPage: React.FC = () => {
-  const [teamMembers] = useState([
-    { name: '김컴학 (나)', role: 'Frontend / UI', ready: true },
-    { name: '이알고', role: 'Algorithm / AI', ready: true },
-  ]);
+const splitList = (value: string) => value.split(',').map((item) => item.trim()).filter(Boolean);
+const isReserved = (value: string) => Object.prototype.hasOwnProperty.call(Object.prototype, value.normalize('NFKC').toLowerCase());
+
+function toAnalysisProfile(member: MemberInput): UserProfile {
+  // The analyzer reads ID, roles and skills from these temporary profiles.
+  return {
+    id: String(member.id), name: member.name.trim(), desiredRoles: splitList(member.roles),
+    techStacks: splitList(member.skills), email: '', nickname: '', grade: '1학년',
+    track: '플랫폼소프트웨어', bio: '', interests: [], wantedTechStacks: [], experiences: [],
+    isPublic: false, createdAt: '', updatedAt: '',
+  };
+}
+
+export function TeamBuilderPage() {
+  const pageId = useId();
+  const nextId = useRef(1);
+  const [members, setMembers] = useState<MemberInput[]>([]);
+  const [required, setRequired] = useState('');
+  const roles = splitList(required);
+  const profiles = members.map(toAnalysisProfile);
+  const invalidTag = [...roles, ...profiles.flatMap((profile) => [...profile.desiredRoles, ...profile.techStacks])]
+    .some(isReserved);
+  const hasIncompleteMembers = profiles.some((profile) => profile.desiredRoles.length === 0);
+  const ready = profiles.some((profile) => profile.desiredRoles.length || profile.techStacks.length);
+  const analysis = ready && !invalidTag ? analyzeTeamBalanceForRoles(profiles, [], roles) : null;
+
+  function addMember() {
+    const id = nextId.current++;
+    setMembers((previous) => [...previous, { id, name: '', roles: '', skills: '' }]);
+  }
+
+  function updateMember(id: number, field: 'name' | 'roles' | 'skills', value: string) {
+    setMembers((previous) => previous.map((member) => member.id === id ? { ...member, [field]: value } : member));
+  }
 
   return (
-    <div className="space-y-6">
-      {/* 헤더 */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-black text-[#111111] tracking-tight">스마트 팀 빌더</h1>
-            <span className="px-2 py-0.5 text-xs font-semibold rounded bg-[#F4EFFE] text-[#7D39EB] border border-[#7D39EB]/20">
-              TEAM ANALYZER
-            </span>
+    <div className="min-w-0 space-y-6">
+      <PageHeader title="스마트 팀 빌더" subtitle="팀원 역할과 보유 기술을 입력하면 팀 구성을 분석합니다. 입력은 이 화면에서만 유지됩니다." />
+      <div className="grid min-w-0 items-start gap-5 lg:grid-cols-2">
+        <Card className="min-w-0 space-y-4">
+          <Input id={pageId + '-requirements'} label="프로젝트 필수 역할" value={required}
+            onChange={(event) => setRequired(event.target.value)} placeholder="Frontend, Backend"
+            hint="쉼표로 구분하세요. 같은 역할을 여러 명에게 맡기려면 반복해서 입력하세요." />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-bold text-[#0F172A]">팀 구성 ({members.length}명)</h2>
+            <Button type="button" variant="lime" size="sm" onClick={addMember} leftIcon={<Plus size={15} aria-hidden="true" />}>팀원 추가</Button>
           </div>
-          <p className="text-xs text-[#64748B] mt-1">
-            팀원 구성에 따른 기술 역량 균형도, 필수 역할 충족 여부, 부족한 포지션을 실시간으로 분석합니다.
-          </p>
-        </div>
-
-        <button
-          onClick={() => alert('팀 구성이 저장되었습니다 (예시).')}
-          className="self-start sm:self-auto px-4 py-2 rounded-lg bg-[#C6FF33] text-black text-xs font-bold hover:bg-[#B8F224] flex items-center gap-2 transition-colors"
-        >
-          <Save className="w-4 h-4" />
-          현재 팀 구성 저장하기
-        </button>
-      </div>
-
-      <PlaceholderCard
-        title="팀 빌더 및 역량 시각화 엔진"
-        description="팀원을 실시간으로 추가/제거하면서 팀의 전체 기술 역량 레이더 차트, 포지션 결손 경고, 그리고 공통 주간 가능 시간의 변화를 즉시 시뮬레이션합니다."
-        assignedRole="C (팀 밸런스 분석 & 보완 인재 추천 알고리즘) + A (Recharts 시각화)"
-        plannedFeatures={[
-          '팀원 조합별 기술 역량 커버리지 다각형 레이더 차트 실시간 렌더링',
-          '부족한 포지션(예: 백엔드/DevOps) 자동 감지 및 보완 팀원 1-Click 추천',
-          '팀원 변동에 따른 주간 공통 가능 시간(회의 가능 슬롯) 실시간 재계산',
-          '최종 확정 팀 구성 저장 및 프로젝트 워크스페이스 원클릭 연동',
-        ]}
-      />
-
-      {/* 분석 대시보드 그리드 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* 현재 팀원 목록 */}
-        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 space-y-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-[#111111] flex items-center gap-2">
-              <Users className="w-4 h-4 text-[#7D39EB]" />
-              현재 팀 구성 (2/4명)
-            </h3>
-            <button
-              onClick={() => alert('팀원 추가 모달이 열립니다 (예시).')}
-              className="text-xs text-[#7D39EB] hover:underline flex items-center gap-1 font-semibold"
-            >
-              <Plus className="w-3.5 h-3.5" /> 후보 추가
-            </button>
-          </div>
-
-          <div className="space-y-2">
-            {teamMembers.map((m, idx) => (
-              <div
-                key={idx}
-                className="p-3 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] flex items-center justify-between"
-              >
-                <div>
-                  <div className="text-xs font-bold text-[#111111]">{m.name}</div>
-                  <div className="text-[11px] text-[#64748B]">{m.role}</div>
-                </div>
-                <span className="w-2 h-2 rounded-full bg-[#7D39EB]" />
+          {members.map((member) => (
+            <fieldset key={member.id} className="min-w-0 space-y-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+              <legend className="px-1 text-sm font-bold">팀원 {member.id}</legend>
+              <div className="flex justify-end">
+                <Button type="button" variant="ghost" size="sm" aria-label={`팀원 ${member.id} 삭제`}
+                  onClick={() => setMembers((previous) => previous.filter(({ id }) => id !== member.id))}>삭제</Button>
               </div>
-            ))}
-          </div>
-
-          {/* 역량 경고 배너 */}
-          <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
-            <div>
-              <strong className="block font-semibold">부족한 역할 감지</strong>
-              현재 Backend 및 DevOps 포지션이 비어있습니다. 해당 분야 팀원을 영입하는 것을 권장합니다.
+              <Input id={`${pageId}-${member.id}-name`} label="이름 또는 별칭" value={member.name} onChange={(event) => updateMember(member.id, 'name', event.target.value)} />
+              <Input id={`${pageId}-${member.id}-roles`} label="가능 역할" value={member.roles} placeholder="Frontend, UI/UX" onChange={(event) => updateMember(member.id, 'roles', event.target.value)} />
+              <Input id={`${pageId}-${member.id}-skills`} label="보유 기술" value={member.skills} placeholder="React, TypeScript" onChange={(event) => updateMember(member.id, 'skills', event.target.value)} />
+            </fieldset>
+          ))}
+        </Card>
+        <section aria-label="팀 분석 결과" className="min-w-0 space-y-4">
+          <Card className="space-y-3">
+            <h2 className="text-sm font-bold text-[#0F172A]">역할 구성</h2>
+            {invalidTag ? <p role="alert" className="text-sm text-red-700">역할 또는 기술에 사용할 수 없는 이름이 있습니다.</p>
+              : !analysis ? <p className="text-sm text-[#64748B]">{members.length ? '가능 역할이나 보유 기술을 입력하면 분석이 시작됩니다.' : '분석할 팀원을 추가하세요.'}</p>
+              : <>
+                <p className="text-sm font-semibold text-[#7D39EB]">{roles.length ? (analysis.isBalanced ? '필수 역할 충족' : '필수 역할 미충족') : '역할 균형 미판정'}</p>
+                {hasIncompleteMembers && <p className="text-sm text-[#64748B]">일부 팀원의 가능 역할이 비어 있습니다. 입력된 역할을 기준으로 분석했습니다.</p>}
+                <dl className="grid grid-cols-2 gap-3 break-words text-sm">
+                  <div><dt className="font-semibold">{roles.length ? '충족 역할' : '확인된 역할'}</dt><dd>{analysis.coveredRoles.join(', ') || '없음'}</dd></div>
+                  <div><dt className="font-semibold">부족 역할</dt><dd>{roles.length ? analysis.missingRoles.join(', ') || '없음' : '미판정'}</dd></div>
+                </dl>
+                <ul className="space-y-1 text-xs text-[#64748B]">{analysis.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>
+              </>}
+          </Card>
+          {analysis && <Card className="space-y-3">
+            <h2 className="text-sm font-bold text-[#0F172A]">분야별 기술 커버리지</h2>
+            <p className="text-xs text-[#64748B]">팀이 입력한 고유 기술의 분야별 범위를 나타냅니다.</p>
+            <div className="h-56 min-w-0" aria-hidden="true">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                <RadarChart data={analysis.radarData}>
+                  <PolarGrid stroke="#E2E8F0" />
+                  <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10 }} />
+                  <PolarRadiusAxis domain={[0, 100]} tick={false} />
+                  <Radar dataKey="score" stroke="#7D39EB" fill="#7D39EB" fillOpacity={0.25} isAnimationActive={false} />
+                </RadarChart>
+              </ResponsiveContainer>
             </div>
-          </div>
-        </div>
-
-        {/* 팀 역량 시각화 레이더 차트 */}
-        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 flex flex-col justify-between shadow-sm">
-          <h3 className="text-sm font-bold text-[#111111] flex items-center gap-2 mb-2">
-            <Sparkles className="w-4 h-4 text-[#7D39EB]" />
-            팀 기술 역량 균형도 (시각화 프리뷰)
-          </h3>
-          <div className="w-full h-60">
-            <ResponsiveContainer width="100%" height="100%">
-              <RadarChart data={RADAR_DATA}>
-                <PolarGrid stroke="#E2E8F0" />
-                <PolarAngleAxis dataKey="subject" stroke="#64748B" tick={{ fontSize: 11 }} />
-                <PolarRadiusAxis stroke="#CBD5E1" />
-                <Radar name="팀 역량" dataKey="A" stroke="#7D39EB" fill="#7D39EB" fillOpacity={0.3} />
-              </RadarChart>
-            </ResponsiveContainer>
-          </div>
-          <p className="text-[11px] text-[#64748B] text-center">
-            * Recharts 라이브러리를 활용한 반응형 팀 역량 시각화 샘플
-          </p>
-        </div>
-
-        {/* 추천 보완 팀원 */}
-        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 space-y-3 shadow-sm">
-          <h3 className="text-sm font-bold text-[#111111]">결손 역량 보완 추천 인재</h3>
-          <div className="p-3 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-[#111111]">박데이터 (2학년)</span>
-              <span className="text-[10px] text-[#7D39EB] font-bold bg-[#F4EFFE] px-1.5 py-0.5 rounded">적합도 94%</span>
-            </div>
-            <p className="text-[11px] text-[#64748B]">
-              추천 이유: 부족한 Backend/DB 역량을 100% 보완 가능하며 금요일/주말 회의 가능
-            </p>
-            <button
-              onClick={() => alert('팀 후보에 추가했습니다 (예시).')}
-              className="w-full py-1.5 rounded bg-[#F4EFFE] hover:bg-[#7D39EB] text-[#7D39EB] hover:text-white text-xs font-semibold border border-[#7D39EB]/30 transition-colors"
-            >
-              + 후보 명단에 담기
-            </button>
-          </div>
-        </div>
+            <dl className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
+              {analysis.radarData.map(({ subject, score }) => (
+                <div key={subject} className="rounded-lg bg-[#F8FAFC] p-2"><dt>{subject}</dt><dd className="font-bold text-[#7D39EB]">{score}점</dd></div>
+              ))}
+            </dl>
+          </Card>}
+        </section>
       </div>
     </div>
   );
-};
+}

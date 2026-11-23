@@ -1,156 +1,155 @@
-import React, { useState } from 'react';
-import { Sparkles, Save } from 'lucide-react';
-import { PlaceholderCard } from '../components/PlaceholderCard';
+import { useId, useRef, useState } from 'react';
+import { Plus } from 'lucide-react';
+import { calculateOptimalMeetingSlots, slotToTimeString } from '../algorithms/scheduleOptimizer';
+import { Button, Card, Input, PageHeader, Select } from '../components/ui';
+import type { Availability, DayOfWeek } from '../types';
 
-const DAYS = ['월', '화', '수', '목', '금', '토', '일'];
-const SAMPLE_TIMES = ['09:00', '11:00', '13:00', '15:00', '17:00', '19:00', '21:00'];
+const DAYS = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
+const dayOptions = [1, 2, 3, 4, 5, 6, 0].map((day) => ({ value: String(day), label: DAYS[day] }));
+const startOptions = Array.from({ length: 48 }, (_, slot) => ({ value: String(slot), label: slotToTimeString(slot) }));
+const endOptions = Array.from({ length: 48 }, (_, slot) => ({ value: String(slot + 1), label: slotToTimeString(slot, true) }));
+const durationOptions = [30, 60, 90, 120].map((minutes) => ({ value: String(minutes), label: minutes + '분' }));
 
-export const SchedulePage: React.FC = () => {
-  const [selectedMode, setSelectedMode] = useState<'my' | 'team'>('team');
+interface TimeRange {
+  id: number;
+  day: string;
+  start: string;
+  end: string;
+}
+
+interface ScheduleMember {
+  id: number;
+  name: string;
+  ranges: TimeRange[];
+}
+
+function isCompleteRange({ day, start, end }: TimeRange) {
+  return day !== '' && start !== '' && end !== '' && Number(start) < Number(end);
+}
+
+function toAvailabilityMap(members: ScheduleMember[]): Record<string, Availability[]> {
+  return Object.fromEntries(members.map((member) => {
+    const userId = String(member.id);
+    const slots = new Map<string, Availability>();
+    for (const range of member.ranges) {
+      for (let slot = Number(range.start); slot < Number(range.end); slot++) {
+        const id = `${userId}-${range.day}-${slot}`;
+        slots.set(id, { id, userId, dayOfWeek: Number(range.day) as DayOfWeek, slot, isAvailable: true, updatedAt: '' });
+      }
+    }
+    return [userId, [...slots.values()]];
+  }));
+}
+
+export function SchedulePage() {
+  const pageId = useId();
+  const nextMemberId = useRef(1);
+  const nextRangeId = useRef(1);
+  const [members, setMembers] = useState<ScheduleMember[]>([]);
+  const [duration, setDuration] = useState('60');
+  const hasInvalidRange = members.some((member) => member.ranges.some((range) => !isCompleteRange(range)));
+  const hasTime = members.some((member) => member.ranges.length > 0);
+  const results = hasTime && !hasInvalidRange ? calculateOptimalMeetingSlots(toAvailabilityMap(members), Number(duration)) : [];
+  const names = new Map(members.map((member) => [String(member.id), member.name.trim() || `팀원 ${member.id}`]));
+
+  function updateMember(id: number, update: (member: ScheduleMember) => ScheduleMember) {
+    setMembers((previous) => previous.map((member) => member.id === id ? update(member) : member));
+  }
+
+  function addMember() {
+    const id = nextMemberId.current++;
+    setMembers((previous) => [...previous, { id, name: '', ranges: [] }]);
+  }
+
+  function addRange(memberId: number) {
+    const id = nextRangeId.current++;
+    updateMember(memberId, (member) => ({ ...member, ranges: [...member.ranges, { id, day: '', start: '', end: '' }] }));
+  }
+
+  function changeRange(memberId: number, rangeId: number, key: 'day' | 'start' | 'end', value: string) {
+    updateMember(memberId, (member) => ({
+      ...member, ranges: member.ranges.map((range) => range.id === rangeId ? { ...range, [key]: value } : range),
+    }));
+  }
 
   return (
-    <div className="space-y-6">
-      {/* 헤더 */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-black text-[#111111] tracking-tight">주간 시간표 &amp; 회의 조율</h1>
-            <span className="px-2 py-0.5 text-xs font-semibold rounded bg-[#F4EFFE] text-[#7D39EB] border border-[#7D39EB]/20">
-              TIME SYNC
-            </span>
+    <div className="min-w-0 space-y-6">
+      <PageHeader title="주간 시간표 & 회의 조율" subtitle="한국 시간 기준으로 가능한 요일과 시간을 입력하세요. 입력은 이 화면에서만 유지됩니다." />
+      <div className="grid min-w-0 items-start gap-5 lg:grid-cols-2">
+        <Card className="min-w-0 space-y-4">
+          <Select id={pageId + '-duration'} label="최소 회의 시간" options={durationOptions} value={duration}
+            onChange={(event) => setDuration(event.target.value)} />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-bold text-[#0F172A]">팀원별 가능 시간 ({members.length}명)</h2>
+            <Button type="button" variant="lime" size="sm" onClick={addMember} leftIcon={<Plus size={15} aria-hidden="true" />}>팀원 추가</Button>
           </div>
-          <p className="text-xs text-[#64748B] mt-1">
-            한국 시간(Asia/Seoul) 기준, 30분 단위 슬롯으로 팀원 간 공통 가능 시간을 계산하고 최적의 회의 시간을 찾습니다.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <div className="p-1 rounded-lg bg-white border border-[#E2E8F0] flex items-center text-xs shadow-sm">
-            <button
-              onClick={() => setSelectedMode('team')}
-              className={`px-3 py-1.5 rounded-md font-semibold transition-colors ${
-                selectedMode === 'team'
-                  ? 'bg-[#7D39EB] text-white shadow-sm'
-                  : 'text-[#64748B] hover:text-[#111111]'
-              }`}
-            >
-              팀 전체 히트맵
-            </button>
-            <button
-              onClick={() => setSelectedMode('my')}
-              className={`px-3 py-1.5 rounded-md font-semibold transition-colors ${
-                selectedMode === 'my'
-                  ? 'bg-[#7D39EB] text-white shadow-sm'
-                  : 'text-[#64748B] hover:text-[#111111]'
-              }`}
-            >
-              내 가능 시간 등록
-            </button>
-          </div>
-
-          <button
-            onClick={() => alert('시간표 저장이 완료되었습니다 (예시).')}
-            className="px-3.5 py-2 rounded-lg bg-[#C6FF33] text-black text-xs font-bold hover:bg-[#B8F224] flex items-center gap-1.5 transition-colors"
-          >
-            <Save className="w-3.5 h-3.5" />
-            저장
-          </button>
-        </div>
-      </div>
-
-      <PlaceholderCard
-        title="30분 슬롯 주간 히트맵 및 회의 시간 추천 엔진"
-        description="월~일 주간 48개 슬롯(30분 단위)을 바탕으로 팀원 전원 일치 시간 및 최대 인원 참여 가능 시간을 분석하여 1~2시간 연속 회의 슬롯을 자동 추천합니다."
-        assignedRole="C (시간표 교차 계산 및 연속 회의 슬롯 추천 알고리즘) + A (드래그 인터랙션 UI)"
-        plannedFeatures={[
-          '마우스 드래그를 통한 30분 단위 개인 활동 가능 시간 간편 토글',
-          '팀원 수에 따른 5단계 컬러 히트맵 (Dark → Violet → Lime 하이라이트)',
-          '팀원 전원 가능 시간 우선 추천 & 미존재 시 최대 참여자 기준 차선 슬롯 추천',
-          '추천된 시간을 프로젝트 회의 일정(Meeting)으로 원클릭 등록 연동',
-        ]}
-      />
-
-      {/* 추천 회의 시간 배너 */}
-      <div className="p-4 rounded-xl bg-white border border-[#7D39EB]/30 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-[#C6FF33] text-black font-black">
-            <Sparkles className="w-4 h-4" />
-          </div>
-          <div>
-            <div className="text-xs font-bold text-[#111111] flex items-center gap-2">
-              <span>최적 회의 추천 시간:</span>
-              <span className="text-[#7D39EB] font-bold">매주 화요일 19:00 ~ 21:00 (2시간 연속)</span>
-            </div>
-            <p className="text-[11px] text-[#64748B]">
-              현재 참여 팀원 3명 전원(100%) 참석 가능 슬롯입니다.
-            </p>
-          </div>
-        </div>
-
-        <button
-          onClick={() => alert('화요일 19:00 정기 회의로 등록되었습니다 (예시).')}
-          className="w-full sm:w-auto px-4 py-2 rounded-lg bg-[#7D39EB] hover:bg-[#6025C5] text-white text-xs font-bold transition-all shadow-sm shrink-0"
-        >
-          이 시간으로 회의 확정
-        </button>
-      </div>
-
-      {/* 주간 시간표 그리드 프리뷰 */}
-      <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 overflow-x-auto shadow-sm">
-        <div className="min-w-[600px]">
-          <div className="grid grid-cols-8 gap-2 text-center text-xs font-bold text-[#64748B] pb-3 border-b border-[#E2E8F0]">
-            <div>시간</div>
-            {DAYS.map((d) => (
-              <div key={d} className="text-[#111111]">
-                {d}요일
+          <p className="text-xs text-[#64748B]">30분 단위로 여러 구간을 추가할 수 있습니다. 자정을 넘는 구간은 두 요일로 나눠 입력하세요.</p>
+          {members.map((member) => (
+            <fieldset key={member.id} className="min-w-0 space-y-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+              <legend className="px-1 text-sm font-bold">팀원 {member.id}</legend>
+              <div className="flex justify-end">
+                <Button type="button" variant="ghost" size="sm" aria-label={`팀원 ${member.id} 삭제`}
+                  onClick={() => setMembers((previous) => previous.filter(({ id }) => id !== member.id))}>삭제</Button>
               </div>
-            ))}
-          </div>
-
-          <div className="divide-y divide-[#E2E8F0] text-xs">
-            {SAMPLE_TIMES.map((time, rowIdx) => (
-              <div key={time} className="grid grid-cols-8 gap-2 py-2.5 items-center">
-                <div className="text-[#64748B] font-mono text-[11px] text-center">{time}</div>
-                {DAYS.map((_, colIdx) => {
-                  const isFullMatch = (rowIdx === 5 && colIdx === 1) || (rowIdx === 6 && colIdx === 1);
-                  const isPartial = (rowIdx + colIdx) % 3 === 0;
-
-                  return (
-                    <div
-                      key={colIdx}
-                      className={`h-9 rounded-md flex items-center justify-center text-[10px] font-semibold transition-all cursor-pointer ${
-                        isFullMatch
-                          ? 'bg-[#C6FF33] text-black font-bold shadow-sm border border-[#B8F224]'
-                          : isPartial
-                          ? 'bg-[#F4EFFE] text-[#7D39EB] border border-[#7D39EB]/30'
-                          : 'bg-[#F8FAFC] text-[#94A3B8] border border-[#E2E8F0] hover:border-[#7D39EB]'
-                      }`}
-                      title={isFullMatch ? '전원 가능 (3/3명)' : isPartial ? '일부 가능 (2/3명)' : '가능 인원 없음'}
-                    >
-                      {isFullMatch ? '전원가능' : isPartial ? '2명' : ''}
+              <Input id={`${pageId}-member-${member.id}`} label="이름 또는 별칭" value={member.name}
+                onChange={(event) => updateMember(member.id, (current) => ({ ...current, name: event.target.value }))} />
+              {member.ranges.map((range, index) => {
+                const prefix = `${pageId}-range-${range.id}`;
+                const reversed = range.start !== '' && range.end !== '' && Number(range.start) >= Number(range.end);
+                return (
+                  <fieldset key={range.id} className="min-w-0 space-y-2 rounded-lg border border-[#E2E8F0] bg-white p-3">
+                    <legend className="px-1 text-xs font-semibold">가능 시간 {index + 1}</legend>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                      <Select id={prefix + '-day'} label="요일" placeholder="선택" options={dayOptions} value={range.day}
+                        onChange={(event) => changeRange(member.id, range.id, 'day', event.target.value)} />
+                      <Select id={prefix + '-start'} label="시작" placeholder="선택" options={startOptions} value={range.start}
+                        onChange={(event) => changeRange(member.id, range.id, 'start', event.target.value)} />
+                      <Select id={prefix + '-end'} label="종료" placeholder="선택" options={endOptions} value={range.end}
+                        aria-invalid={reversed} aria-describedby={reversed ? prefix + '-error' : undefined}
+                        onChange={(event) => changeRange(member.id, range.id, 'end', event.target.value)} />
                     </div>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-        </div>
+                    {reversed && <p id={prefix + '-error'} className="text-xs text-red-700">종료 시간은 시작 시간보다 늦어야 합니다.</p>}
+                    <Button type="button" size="xs" variant="ghost" aria-label={`가능 시간 ${index + 1} 삭제`}
+                      onClick={() => updateMember(member.id, (current) => ({
+                        ...current, ranges: current.ranges.filter(({ id }) => id !== range.id),
+                      }))}>구간 삭제</Button>
+                  </fieldset>
+                );
+              })}
+              <Button type="button" size="sm" variant="outline" onClick={() => addRange(member.id)}>가능 시간 추가</Button>
+            </fieldset>
+          ))}
+        </Card>
 
-        <div className="mt-4 pt-3 border-t border-[#E2E8F0] flex items-center justify-end gap-4 text-xs text-[#64748B]">
-          <div className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded bg-[#C6FF33] border border-[#B8F224]" />
-            <span>전원 가능 (추천)</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded bg-[#F4EFFE] border border-[#7D39EB]/30" />
-            <span>부분 가능</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded bg-[#F8FAFC] border border-[#E2E8F0]" />
-            <span>불가</span>
-          </div>
-        </div>
+        <section aria-label="회의 추천 결과" className="min-w-0">
+          <Card className="space-y-3">
+            <h2 className="text-sm font-bold text-[#0F172A]">추천 회의 시간</h2>
+            {hasInvalidRange ? <p role="status" className="text-sm text-[#64748B]">추가한 모든 구간의 요일과 시작·종료 시간을 확인하세요.</p>
+              : !members.length ? <p className="text-sm text-[#64748B]">시간을 조율할 팀원을 추가하세요.</p>
+              : !hasTime ? <p className="text-sm text-[#64748B]">팀원의 가능 시간을 입력하세요.</p>
+              : <>
+                {members.some((member) => !member.ranges.length) && <p className="text-sm text-[#64748B]">가능 시간을 입력하지 않은 팀원도 전체 인원에 포함됩니다.</p>}
+                {!results.length ? <p className="text-sm text-[#64748B]">선택한 최소 회의 시간을 만족하는 공통 구간이 없습니다.</p>
+                  : <>
+                    <p className="text-sm text-[#64748B]">{results[0].missingMemberIds.length === 0 ? '전원이 참석 가능한 구간입니다.' : '전원이 참석할 수 없어 부분 참석 대안을 표시합니다.'}</p>
+                    <ol className="space-y-2">
+                      {results.map((result) => (
+                        <li key={`${result.dayOfWeek}-${result.startSlot}-${result.endSlot}-${result.availableMemberIds.join(',')}`}
+                          className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-sm">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <strong>{DAYS[result.dayOfWeek]} {slotToTimeString(result.startSlot)} ~ {slotToTimeString(result.endSlot, true)}</strong>
+                            {result.isOptimal && <span className="rounded bg-[#C6FF33] px-2 py-0.5 text-xs font-semibold">최적</span>}
+                          </div>
+                          <p className="mt-1 text-[#475569]">{result.durationMinutes}분 · {result.availableMemberIds.length}/{members.length}명 참석 가능</p>
+                          {result.missingMemberIds.length > 0 && <p className="mt-1 break-words text-xs text-[#64748B]">참석 불가 또는 미입력: {result.missingMemberIds.map((id) => names.get(id)).join(', ')}</p>}
+                        </li>
+                      ))}
+                    </ol>
+                  </>}
+              </>}
+          </Card>
+        </section>
       </div>
     </div>
   );
-};
+}
