@@ -1,7 +1,7 @@
 import type { UserProfile } from '../services/profileService';
 import type { MatchResult } from '../types';
 import { adaptMemberMatchesToUi } from './adapters';
-import { isPublicAlgorithmCandidate } from './inputSafety';
+import { hasExplicitPublicProfileConsent } from './inputSafety';
 import { calculateMemberMatch } from './memberMatching';
 import { getCanonicalTag } from './tagClassification';
 
@@ -33,10 +33,9 @@ export function recommendPublicMembers(
   const candidates = (profiles ?? []).filter((profile) => profile && profile.id.trim());
   if (candidates.length === 0) return { status: 'no-candidates', matches: [] };
 
-  const publicProfiles = candidates.filter((profile) => profile && isPublicAlgorithmCandidate({
-    visibility: profile.visibility ?? undefined,
-    isPublic: profile.is_public ?? undefined,
-  }));
+  const publicProfiles = candidates.filter((profile) =>
+    profile && hasExplicitPublicProfileConsent(profile.visibility, profile.is_public)
+  );
   if (publicProfiles.length === 0) return { status: 'no-public-candidates', matches: [] };
 
   const desiredRoles = (requirements?.desiredRoles ?? []).filter((role) => role.trim());

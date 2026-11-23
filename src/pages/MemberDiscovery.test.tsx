@@ -2,10 +2,12 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { MemberSearchResult, PublicProfile, PublicProfileSource } from '../features/members/memberDiscovery';
+import { publicProfileSource, type MemberSearchResult, type PublicProfile, type PublicProfileSource } from '../features/members/memberDiscovery';
 import { MemberDetailPage } from './MemberDetailPage';
 import { MembersPage } from './MembersPage';
 
+const rpc = vi.hoisted(() => vi.fn());
+vi.mock('../lib/supabase', () => ({ supabase: { rpc } }));
 vi.mock('../contexts/MyProfileContext', () => ({ useMyProfile: () => ({ userId: 'viewer' }) }));
 afterEach(cleanup);
 
@@ -53,6 +55,23 @@ function renderRoutes(path: string, source?: PublicProfileSource) {
 }
 
 describe('팀원 탐색과 공개 프로필 상세', () => {
+  it('실제 서비스 어댑터를 통해 공개 검색과 상세 RPC를 호출하고 응답의 연락처 필드를 표시하지 않는다', async () => {
+    const row = { ...fullProfile, email: 'private@example.test', kakao_id: 'private-kakao', phone: 'private-phone' };
+    rpc.mockReset();
+    rpc.mockResolvedValueOnce({ data: pageOf([row]), error: null });
+    rpc.mockResolvedValueOnce({ data: row, error: null });
+    renderRoutes('/members', publicProfileSource);
+    const link = await screen.findByRole('link', { name: '브리지' });
+    expect(rpc).toHaveBeenCalledWith('bridge_m20261119_search_public_profiles', expect.objectContaining({
+      p_exclude_user_id: 'viewer', p_page: 1, p_page_size: 12,
+    }));
+    expect(document.body.textContent).not.toMatch(/private@example\.test|private-kakao|private-phone/);
+    fireEvent.click(link);
+    await screen.findByRole('heading', { name: '브리지' });
+    expect(rpc).toHaveBeenCalledWith('bridge_m20261119_fetch_public_profile', { p_user_id: 'member-1' });
+    expect(document.body.textContent).not.toMatch(/private@example\.test|private-kakao|private-phone/);
+  });
+
   it('연결 전에는 예시 학생 대신 준비 상태를 표시한다', () => {
     renderRoutes('/members');
     expect(screen.getByText('공개 프로필 조회 준비 중')).toBeTruthy();
@@ -65,7 +84,10 @@ describe('팀원 탐색과 공개 프로필 상세', () => {
   it('서버 검색·필터를 적용하고 이전·다음 페이지와 본인 제외를 지원한다', async () => {
     const source = buildSource();
     source.searchPublicProfiles.mockImplementation(async ({ page }) => pageOf(page === 1
-      ? [fullProfile, privateProfile, { ...sparseProfile, id: 'viewer', name: '로그인한 본인' }]
+      ? [fullProfile, privateProfile,
+        { ...sparseProfile, id: 'legacy', name: '레거시 프로필', nickname: '', visibility: null },
+        { ...sparseProfile, id: 'unknown', name: '동의 미확인', nickname: '', is_public: null },
+        { ...sparseProfile, id: 'viewer', name: '로그인한 본인' }]
       : [sparseProfile], page, 2));
     renderRoutes('/members', source);
     expect(screen.getByRole('status').textContent).toContain('불러오는 중');
@@ -75,6 +97,8 @@ describe('팀원 탐색과 공개 프로필 상세', () => {
       expect(card.textContent).toContain(field);
     }
     expect(screen.queryByText('숨겨진 학생')).toBeNull();
+    expect(screen.queryByText('레거시 프로필')).toBeNull();
+    expect(screen.queryByText('동의 미확인')).toBeNull();
     expect(screen.queryByText('로그인한 본인')).toBeNull();
     expect(source.searchPublicProfiles).toHaveBeenLastCalledWith(expect.objectContaining({ excludeUserId: 'viewer', page: 1, pageSize: 12 }));
 
@@ -203,6 +227,8 @@ describe('팀원 탐색과 공개 프로필 상세', () => {
     ['비공개', privateProfile],
     ['미존재', null],
     ['다른 ID', fullProfile],
+    ['레거시 공개', { ...privateProfile, visibility: null, is_public: true } as const],
+    ['공개 동의 없음', { ...privateProfile, visibility: 'public', is_public: null } as const],
     ['공개 취소', { ...privateProfile, visibility: 'public', is_public: false } as const],
   ])('%s 프로필은 동일한 조회 불가 상태로 표시한다', async (_case, profile) => {
     const source = buildSource();
@@ -210,6 +236,8 @@ describe('팀원 탐색과 공개 프로필 상세', () => {
     renderRoutes('/members/private', source);
     expect(await screen.findByText('프로필을 볼 수 없어요')).toBeTruthy();
     expect(screen.queryByText('숨겨진 학생')).toBeNull();
+    expect(screen.queryByText('레거시 프로필')).toBeNull();
+    expect(screen.queryByText('동의 미확인')).toBeNull();
     expect(screen.queryByText('브리지')).toBeNull();
   });
 
