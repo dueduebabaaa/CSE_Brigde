@@ -1,116 +1,206 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, ArrowRight } from 'lucide-react';
-import { PlaceholderCard } from '../components/PlaceholderCard';
-
-const SAMPLE_PROJECTS = [
-  {
-    id: 'proj-1',
-    name: 'KNU 오픈소스 프론트엔드 팀',
-    opportunityTitle: '2026 대학생 오픈소스 SW 개발 챌린지',
-    role: '팀장 / Frontend',
-    membersCount: 4,
-    deadline: '2026-12-31',
-    dDay: 'D-45',
-    progress: 35,
-  },
-];
+import {
+  FolderKanban,
+  Users,
+  ArrowRight,
+  Plus,
+  RefreshCw,
+} from 'lucide-react';
+import { useMyProfile } from '../contexts/MyProfileContext';
+import { getRecruitments } from '../services/recruitmentService';
+import type { Recruitment } from '../types';
 
 export const ProjectsPage: React.FC = () => {
+  const { userId, status } = useMyProfile();
+
+  const [recruitments, setRecruitments] = useState<Recruitment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [retry, setRetry] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+
+    if (!userId || status !== 'ready') {
+      setRecruitments([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    void getRecruitments().then((result) => {
+      if (!active) return;
+
+      if (result.error) {
+        setRecruitments([]);
+        setError(result.error.message);
+      } else {
+        const myRecruitments = (result.data ?? []).filter(
+          (item) => item.authorId === userId
+        );
+        setRecruitments(myRecruitments);
+      }
+
+      setLoading(false);
+    }).catch(() => {
+      if (!active) return;
+      setRecruitments([]);
+      setError('모집글을 불러오는 중 오류가 발생했습니다.');
+      setLoading(false);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [userId, status, retry]);
+
+  const statusLabel = (value: Recruitment['status']) => {
+    if (value === 'recruiting') return '모집중';
+    if (value === 'completed') return '모집완료';
+    return '모집취소';
+  };
+
   return (
     <div className="space-y-6">
-      {/* 헤더 */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-black text-[#111111] tracking-tight">내 프로젝트</h1>
-            <span className="px-2 py-0.5 text-xs font-semibold rounded bg-[#F4EFFE] text-[#7D39EB] border border-[#7D39EB]/20">
+            <h1 className="text-2xl font-black text-[#111111] tracking-tight">
+              내 프로젝트
+            </h1>
+            <span className="px-2 py-0.5 text-xs font-semibold rounded bg-[#F4EFFE] text-[#7D39EB]">
               WORKSPACE
             </span>
           </div>
-          <p className="text-xs text-[#64748B] mt-1">
-            내가 결성하거나 소속된 팀의 공모전 진행 현황, 체크리스트, 협업 도구를 관리하세요.
+          <p className="text-sm text-[#64748B] mt-2">
+            내가 작성한 모집글과 프로젝트 활동을 관리하세요.
           </p>
         </div>
+
+        <Link
+          to="/recruitments/create"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#7D39EB] hover:bg-[#6025C5] text-white text-sm font-bold rounded-xl"
+        >
+          <Plus className="w-4 h-4" />
+          모집글 작성
+        </Link>
       </div>
 
-      <PlaceholderCard
-        title="팀 워크스페이스 및 프로젝트 매니저"
-        description="팀 빌딩이 완료된 팀을 위한 독립 워크스페이스로, 일정 관리, 회의 조율, 작업 체크리스트 및 GitHub/Figma 연동 기능을 제공합니다."
-        assignedRole="A (워크스페이스 UI) + B (Team & ProjectTask 데이터 연동)"
-        plannedFeatures={[
-          '내가 속한 활성 팀 및 과거 완료 프로젝트 이력 조회',
-          '공모전 제출 마감일 실시간 D-Day 계산 및 알림 배너',
-          '팀 공동 체크리스트 (Task 완료 여부 및 담당자 지정)',
-          'GitHub 레포지토리, Figma, Notion 링크 원클릭 연결',
-        ]}
-      />
-
-      {/* 프로젝트 카드 목록 */}
-      <div className="space-y-4">
-        <div className="text-xs text-[#64748B]">
-          * 레이아웃 확인용 프로토타입 샘플 카드입니다.
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold text-[#111111]">
+            내가 만든 모집글
+          </h2>
+          <span className="text-sm text-[#64748B]">
+            {recruitments.length}개
+          </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {SAMPLE_PROJECTS.map((proj) => (
-            <div
-              key={proj.id}
-              className="bg-white border border-[#E2E8F0] hover:border-[#7D39EB] hover:shadow-md rounded-2xl p-6 transition-all group flex flex-col justify-between shadow-sm"
+        {status === 'loading' || loading ? (
+          <div className="p-10 text-center rounded-2xl bg-white border border-[#E2E8F0] text-[#64748B]">
+            모집글을 불러오는 중입니다.
+          </div>
+        ) : status !== 'ready' ? (
+          <div className="p-10 text-center rounded-2xl bg-white border border-[#E2E8F0]">
+            <p className="text-[#64748B]">
+              로그인과 프로필 설정을 완료하면 내 모집글을 확인할 수 있어요.
+            </p>
+          </div>
+        ) : error ? (
+          <div className="p-10 text-center rounded-2xl bg-white border border-[#E2E8F0] space-y-3">
+            <p className="font-bold text-[#111111]">
+              모집글을 불러오지 못했어요.
+            </p>
+            <p className="text-sm text-[#64748B]">{error}</p>
+            <button
+              type="button"
+              onClick={() => setRetry((value) => value + 1)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#7D39EB] text-white text-sm font-bold"
             >
-              <div>
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <span className="text-xs text-[#7D39EB] font-bold">
-                    🎯 {proj.opportunityTitle}
+              <RefreshCw className="w-4 h-4" />
+              다시 시도
+            </button>
+          </div>
+        ) : recruitments.length === 0 ? (
+          <div className="p-12 text-center rounded-2xl bg-white border border-[#E2E8F0] space-y-3">
+            <FolderKanban className="w-10 h-10 text-[#94A3B8] mx-auto" />
+            <h3 className="font-bold text-[#111111]">
+              아직 작성한 모집글이 없습니다
+            </h3>
+            <p className="text-sm text-[#64748B]">
+              함께 활동할 팀원을 모집해 보세요.
+            </p>
+            <Link
+              to="/recruitments"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#7D39EB] text-white text-sm font-bold"
+            >
+              팀원 모집 둘러보기
+            </Link>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {recruitments.map((item) => (
+              <article
+                key={item.id}
+                className="bg-white border border-[#E2E8F0] rounded-2xl p-5 space-y-4 hover:border-[#7D39EB] transition-colors"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-[#7D39EB]">
+                    내가 작성한 모집글
                   </span>
-                  <span className="px-2 py-0.5 text-xs font-bold rounded bg-rose-50 text-rose-600 border border-rose-200">
-                    {proj.dDay}
+                  <span className="px-2 py-1 rounded-lg bg-[#F4EFFE] text-[#7D39EB] text-xs font-semibold">
+                    {statusLabel(item.status)}
+                  </span>
+                </div>
+
+                <h3 className="text-base font-bold text-[#111111]">
+                  {item.title}
+                </h3>
+
+                <div className="flex items-center gap-2 text-sm text-[#64748B]">
+                  <Users className="w-4 h-4" />
+                  <span>
+                    수락 {item.currentMemberCount}명 /
+                    모집 목표 {item.targetMemberCount}명
                   </span>
                 </div>
 
                 <Link
-                  to={`/projects/${proj.id}`}
-                  className="text-lg font-black text-[#111111] group-hover:text-[#7D39EB] transition-colors"
+                  to={`/recruitments/${encodeURIComponent(item.id)}`}
+                  className="inline-flex items-center gap-1 text-sm font-bold text-[#7D39EB]"
                 >
-                  {proj.name}
+                  모집글 상세보기
+                  <ArrowRight className="w-4 h-4" />
                 </Link>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
 
-                <p className="text-xs text-[#64748B] mt-1">
-                  내 역할: <strong className="text-[#111111]">{proj.role}</strong>
-                </p>
-
-                {/* 진행도 바 */}
-                <div className="mt-4">
-                  <div className="flex justify-between text-[11px] text-[#64748B] mb-1">
-                    <span>체크리스트 진행도</span>
-                    <span className="text-[#7D39EB] font-bold">{proj.progress}%</span>
-                  </div>
-                  <div className="w-full h-2 rounded-full bg-[#F1F5F9] overflow-hidden">
-                    <div
-                      className="h-full bg-[#7D39EB] rounded-full"
-                      style={{ width: `${proj.progress}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-6 pt-4 border-t border-[#E2E8F0] flex items-center justify-between text-xs text-[#64748B]">
-                <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4 text-[#94A3B8]" />
-                  <span>팀원 {proj.membersCount}명</span>
-                </div>
-
-                <Link
-                  to={`/projects/${proj.id}`}
-                  className="text-[#7D39EB] group-hover:text-[#6025C5] font-semibold flex items-center gap-1"
-                >
-                  워크스페이스 열기 <ArrowRight className="w-3.5 h-3.5" />
-                </Link>
-              </div>
-            </div>
-          ))}
+      <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="p-6 rounded-2xl bg-white border border-[#E2E8F0] space-y-2">
+          <h2 className="font-bold text-[#111111]">
+            내가 지원한 모집글
+          </h2>
+          <p className="text-sm text-[#64748B]">
+            지원 내역 조회 기능을 준비하고 있어요.
+          </p>
         </div>
-      </div>
+
+        <div className="p-6 rounded-2xl bg-white border border-[#E2E8F0] space-y-2">
+          <h2 className="font-bold text-[#111111]">
+            참여 중인 프로젝트
+          </h2>
+          <p className="text-sm text-[#64748B]">
+            승인된 프로젝트 참여 내역을 연결할 예정이에요.
+          </p>
+        </div>
+      </section>
     </div>
   );
 };
+

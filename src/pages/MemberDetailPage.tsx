@@ -1,109 +1,93 @@
-import React from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Send, Github, Globe } from 'lucide-react';
-import { PlaceholderCard } from '../components/PlaceholderCard';
+import { useCallback, type ReactNode } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import { ArrowLeft, Github, Globe } from 'lucide-react';
+import { Avatar, EmptyState, LoadingState } from '../components/ui';
+import { safeExternalUrl } from '../components/dashboard/dashboardModel';
+import { MemberSkills } from '../features/members/MemberSkills';
+import { isDiscoverable, memberName, useMemberRequest, type PublicProfile, type PublicProfileSource } from '../features/members/memberDiscovery';
 
-export const MemberDetailPage: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
+function ProfileSection({ title, children }: { title: string; children: ReactNode }) {
+  return <section className="min-w-0 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4 text-xs leading-relaxed text-[#334155]">
+    <h2 className="mb-2 font-bold text-[#111111]">{title}</h2>
+    {children}
+  </section>;
+}
 
-  return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <Link
-        to="/members"
-        className="inline-flex items-center gap-1.5 text-xs text-[#64748B] hover:text-[#111111] transition-colors"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        팀원 목록으로 돌아가기
-      </Link>
+function ProfileTags({ values }: { values: string[] }) {
+  return <ul className="flex flex-wrap gap-1.5">
+    {values.map((value) => <li key={value} className="max-w-full break-words rounded border border-[#E2E8F0] bg-white px-2 py-1">{value}</li>)}
+  </ul>;
+}
 
-      {/* 프로필 헤더 */}
-      <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 sm:p-8 space-y-6 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-[#7D39EB] flex items-center justify-center text-white font-black text-2xl shadow-sm">
-              김
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-black text-[#111111] tracking-tight">김컴학</h1>
-                <span className="px-2 py-0.5 text-xs font-bold rounded bg-[#F4EFFE] text-[#7D39EB] border border-[#7D39EB]/20">
-                  플랫폼소프트웨어 · 3학년
-                </span>
-              </div>
-              <p className="text-xs text-[#64748B] mt-1">
-                희망 역할: <strong className="text-[#111111]">Frontend Developer / FullStack</strong> (ID: {id})
-              </p>
-            </div>
-          </div>
+function ProfileDetails({ profile }: { profile: PublicProfile }) {
+  const displayName = memberName(profile);
+  const realName = profile.name.trim();
+  const shortBio = profile.bio?.trim();
+  const longBio = profile.long_bio?.trim();
+  const github = safeExternalUrl(profile.github_url);
+  const portfolio = safeExternalUrl(profile.portfolio_url);
+  const preferences = [...new Set([
+    ...[profile.activity_mode, profile.activity_duration, profile.availability_status].filter((value) => value !== null),
+    ...(profile.activity_types ?? []),
+    ...(profile.activity_goals ?? []),
+  ])];
 
-          <button
-            onClick={() => alert('팀 초대장을 발송했습니다 (예시).')}
-            className="px-5 py-2.5 rounded-lg bg-[#7D39EB] hover:bg-[#6025C5] text-white text-xs font-bold flex items-center gap-2 transition-all self-start sm:self-auto shadow-sm"
-          >
-            <Send className="w-4 h-4" />
-            내 팀으로 초대하기
-          </button>
+  return <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 sm:p-8 space-y-6 shadow-sm">
+    <div className="flex items-center gap-4 min-w-0">
+      <Avatar size="xl" name={displayName} className="!rounded-2xl !bg-[#7D39EB] !text-white shadow-sm" />
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-black text-[#111111] tracking-tight break-words">{displayName}</h1>
+          <span className="px-2 py-0.5 text-xs font-bold rounded bg-[#F4EFFE] text-[#7D39EB] border border-[#7D39EB]/20">{profile.track} · {profile.grade}</span>
         </div>
-
-        {/* 자기소개 */}
-        <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-4 text-xs text-[#334155] leading-relaxed">
-          <h4 className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider mb-1">
-            자기소개 &amp; 목표
-          </h4>
-          컴퓨터학부 3학년 재학 중이며, 사용자 경험 중심의 반응형 웹 프론트엔드 개발에 깊은 관심이 있습니다. 이번 학기 공모전에서 성실하고 책임감 있게 끝까지 프로젝트를 완성할 팀을 찾고 있습니다.
-        </div>
-
-        {/* 기술 스택 & 관심 분야 */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-          <div className="bg-[#F8FAFC] p-4 rounded-xl border border-[#E2E8F0]">
-            <h4 className="font-bold text-[#111111] mb-2">보유 기술 스택</h4>
-            <div className="flex flex-wrap gap-1.5">
-              {['React', 'TypeScript', 'TailwindCSS', 'Next.js', 'Git'].map((s) => (
-                <span key={s} className="px-2 py-1 rounded bg-white text-[#64748B] border border-[#E2E8F0]">
-                  {s}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          <div className="bg-[#F8FAFC] p-4 rounded-xl border border-[#E2E8F0]">
-            <h4 className="font-bold text-[#111111] mb-2">배우고 싶은 기술 &amp; 관심 분야</h4>
-            <div className="flex flex-wrap gap-1.5">
-              {['Supabase', 'Node.js', 'LLM Agent', '클라우드 배포'].map((s) => (
-                <span key={s} className="px-2 py-1 rounded bg-[#F4EFFE] text-[#7D39EB] border border-[#7D39EB]/20">
-                  {s}
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* 협업 링크 */}
-        <div className="flex items-center gap-4 text-xs text-[#64748B] pt-2 border-t border-[#E2E8F0]">
-          <a
-            href="https://github.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 hover:text-[#111111] transition-colors"
-          >
-            <Github className="w-4 h-4" /> GitHub 프로필
-          </a>
-          <a
-            href="https://portfolio.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 hover:text-[#111111] transition-colors"
-          >
-            <Globe className="w-4 h-4" /> 포트폴리오 웹사이트
-          </a>
-        </div>
+        {realName && realName !== displayName && <p className="mt-1 text-xs text-[#64748B] break-words">{realName}</p>}
+        {!!profile.desired_roles?.length && <p className="mt-1 text-xs text-[#334155] break-words">희망 역할 · {profile.desired_roles.join(' / ')}</p>}
       </div>
-
-      <PlaceholderCard
-        title="상세 프로필 및 시간표 일치 분석"
-        description="상대방이 공개 설정한 주간 가능 시간표와 본인 시간표를 오버레이 비교하여 팀 빌딩 가능성을 즉시 검토할 수 있습니다."
-        assignedRole="A (프로필 UI) + C (공통 가능 시간 매칭 알고리즘)"
-      />
     </div>
-  );
-};
+
+    <ProfileSection title="자기소개">
+      {shortBio && <p className="whitespace-pre-wrap break-words">{shortBio}</p>}
+      {longBio && longBio !== shortBio && <p className="mt-1 whitespace-pre-wrap break-words">{longBio}</p>}
+      {!shortBio && !longBio && <p>등록된 자기소개가 없어요.</p>}
+    </ProfileSection>
+
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <ProfileSection title="보유 기술 스택">
+        {profile.tech_stacks?.length ? <MemberSkills profile={profile} /> : <p>등록된 기술 스택이 없어요.</p>}
+      </ProfileSection>
+      <ProfileSection title="관심 분야">
+        {profile.interests?.length ? <ProfileTags values={profile.interests} /> : <p>등록된 관심 분야가 없어요.</p>}
+      </ProfileSection>
+      {!!profile.wanted_tech_stacks?.length && <ProfileSection title="배우고 싶은 기술"><ProfileTags values={profile.wanted_tech_stacks} /></ProfileSection>}
+      {!!preferences.length && <ProfileSection title="활동 선호"><ProfileTags values={preferences} /></ProfileSection>}
+      {!!profile.experiences?.length && <ProfileSection title="활동 경험">
+        <ul className="space-y-1">{profile.experiences.map((experience) => <li className="whitespace-pre-wrap break-words" key={experience}>{experience}</li>)}</ul>
+      </ProfileSection>}
+    </div>
+
+    {(github || portfolio) && <div className="flex flex-wrap items-center gap-4 text-xs text-[#64748B] pt-2 border-t border-[#E2E8F0]">
+      {github && <a href={github} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 hover:text-[#111111]"><Github size={16} aria-hidden="true" />GitHub 프로필</a>}
+      {portfolio && <a href={portfolio} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 hover:text-[#111111]"><Globe size={16} aria-hidden="true" />포트폴리오 웹사이트</a>}
+    </div>}
+  </div>;
+}
+
+export function MemberDetailPage({ source = null }: { source?: PublicProfileSource | null }) {
+  const { id } = useParams<{ id: string }>();
+  const load = useCallback(async () => {
+    if (!source || !id) return null;
+    const profile = await source.fetchPublicProfileById(id);
+    return profile?.id === id && isDiscoverable(profile) ? profile : null;
+  }, [source, id]);
+  const { state, retry } = useMemberRequest(source ? load : null);
+
+  return <div className="max-w-4xl mx-auto space-y-6">
+    <Link to="/members" className="inline-flex items-center gap-1.5 text-xs text-[#64748B] hover:text-[#111111] transition-colors">
+      <ArrowLeft size={16} aria-hidden="true" />팀원 목록으로 돌아가기
+    </Link>
+    {state.status === 'unavailable' && <EmptyState title="공개 프로필 조회 준비 중" description="서비스 연결이 완료되면 프로필을 볼 수 있어요." />}
+    {state.status === 'loading' && <div role="status"><LoadingState text="공개 프로필을 불러오는 중이에요." /></div>}
+    {state.status === 'error' && <div role="alert"><EmptyState title="공개 프로필을 불러오지 못했어요" action={{ label: '다시 시도', onClick: retry }} /></div>}
+    {state.status === 'ready' && (state.data ? <ProfileDetails profile={state.data} /> : <EmptyState title="프로필을 볼 수 없어요" description="비공개 프로필이거나 존재하지 않는 사용자예요." />)}
+  </div>;
+}
