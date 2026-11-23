@@ -66,6 +66,28 @@ describe('프로필-공고 추천 연결기 (getRecommendedOpportunitiesForProfi
     ...overrides,
   });
 
+  it.each([
+    ['분야·기술', ['인공지능'], ['Python'], 'AI 챌린지', ['Python'], true, 100],
+    ['분야만', ['인공지능'], [], 'AI 에이전트 대회', [], true, 100],
+    ['기술만', [], ['Python'], '특강', ['파이썬'], true, 100],
+    ['일치 없음', ['웹 개발'], [], 'AI 챌린지', [], true, 0],
+    ['프로필 정보 없음', [], [], 'AI 챌린지', ['Python'], false, 0],
+    ['비교할 공고 태그 없음', ['인공지능'], ['Python'], '경진대회·해커톤', ['공모전'], false, 0],
+    ['기관명·부분 문자열', ['인공지능'], [], 'AI부트캠프사업단 OpenAI 안내', [], false, 0],
+  ] as const)('%s 입력에서 평가 가능 여부와 점수를 구분한다', (
+    _label, interests, techStacks, title, tags, evaluable, score,
+  ) => {
+    const profile = createServiceProfile({
+      interests: [...interests], tech_stacks: [...techStacks], wanted_tech_stacks: [],
+    });
+    const opportunity = createOpportunity({ title, description: '', tags: [...tags] });
+    const [match] = getRecommendedOpportunitiesForProfile(profile, [opportunity], { currentDate: referenceDate });
+    expect(match).toMatchObject({ evaluable, score });
+    if (score > 0 && interests.length) {
+      expect(match.reasons).toContain('관심 분야인 AI와 일치합니다.');
+    }
+  });
+
   describe('1. 정상 프로필 및 결과 변환 검증', () => {
     it('ServiceUserProfile과 Opportunity 목록을 입력받아 정상적인 MatchResult[]를 산출한다', () => {
       const profile = createServiceProfile();
