@@ -16,12 +16,14 @@ export const RecruitmentCreatePage: React.FC<{ source?: RecruitmentSource | null
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [targetMemberCount, setTargetMemberCount] = useState<number>(4);
-  const [activityType, setActivityType] = useState<ActivityType>('hybrid');
-  const [expectedDuration, setExpectedDuration] = useState('약 2개월');
+  const [memberCountInput, setMemberCountInput] = useState('');
+  const targetMemberCount = /^[0-9]+$/.test(memberCountInput) ? Number(memberCountInput) : NaN;
+  const hasValidMemberCount = Number.isInteger(targetMemberCount) && targetMemberCount >= 1 && targetMemberCount <= 20;
+  const [activityType, setActivityType] = useState<ActivityType | ''>('');
+  const [expectedDuration, setExpectedDuration] = useState('');
   const [deadline, setDeadline] = useState('');
-  const [rolesInput, setRolesInput] = useState('Frontend, Backend');
-  const [techStacksInput, setTechStacksInput] = useState('React, TypeScript, Node.js');
+  const [rolesInput, setRolesInput] = useState('');
+  const [techStacksInput, setTechStacksInput] = useState('');
   const [opportunityType, setOpportunityType] = useState<'free' | 'custom'>('free');
   const [customOpportunityTitle, setCustomOpportunityTitle] = useState('');
   const [customOpportunityUrl, setCustomOpportunityUrl] = useState('');
@@ -50,12 +52,16 @@ export const RecruitmentCreatePage: React.FC<{ source?: RecruitmentSource | null
       expectedDuration,
       roles,
       requiredTechStacks,
-      activityType,
+      activityType: activityType || undefined,
       deadline: deadline ? `${deadline}T23:59:59+09:00` : null,
       customOpportunityUrl: opportunityType === 'custom' ? customOpportunityUrl : null,
     });
 
-    if (!validation.isValid) {
+    if (targetMemberCount > 20) {
+      validation.errors.targetMemberCount = '추가 모집 인원은 최대 20명까지 입력할 수 있습니다.';
+    }
+
+    if (!validation.isValid || !hasValidMemberCount || !activityType) {
       setFormErrors(validation.errors);
       return;
     }
@@ -226,22 +232,24 @@ export const RecruitmentCreatePage: React.FC<{ source?: RecruitmentSource | null
           {/* 인원, 활동 방식, 마감일 */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-[#111111] mb-1.5">
+              <label htmlFor="recruitment-member-count" className="block text-xs font-semibold text-[#111111] mb-1.5">
                 추가 모집 인원 (작성자 제외, 명) <span className="text-[#7D39EB]">*</span>
               </label>
               <input
-                type="number"
-                min={1}
-                max={20}
-                value={targetMemberCount}
-                onChange={(e) => setTargetMemberCount(parseInt(e.target.value, 10) || 1)}
+                id="recruitment-member-count"
+                type="text"
+                inputMode="numeric"
+                value={memberCountInput}
+                onChange={(e) => setMemberCountInput(e.target.value)}
                 className={`w-full px-3.5 py-2.5 rounded-lg bg-[#F8FAFC] border ${
                   formErrors.targetMemberCount ? 'border-rose-500' : 'border-[#E2E8F0]'
                 } focus:border-[#7D39EB] focus:outline-none focus:bg-white text-xs text-[#111111]`}
               />
-              <span className="text-[10px] text-[#64748B] mt-1 block">
-                팀장 1명 + 추가 모집 {targetMemberCount}명 = 총 {targetMemberCount + 1}명 규모
-              </span>
+              {hasValidMemberCount && (
+                <span className="text-[10px] text-[#64748B] mt-1 block">
+                  팀장 1명 + 추가 모집 {targetMemberCount}명 = 총 {targetMemberCount + 1}명 규모
+                </span>
+              )}
               {formErrors.targetMemberCount && (
                 <span className="text-[11px] text-rose-500 mt-1 block">
                   {formErrors.targetMemberCount}
@@ -250,18 +258,25 @@ export const RecruitmentCreatePage: React.FC<{ source?: RecruitmentSource | null
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-[#111111] mb-1.5">
+              <label htmlFor="recruitment-activity-type" className="block text-xs font-semibold text-[#111111] mb-1.5">
                 활동 방식 <span className="text-[#7D39EB]">*</span>
               </label>
               <select
+                id="recruitment-activity-type"
                 value={activityType}
-                onChange={(e) => setActivityType(e.target.value as ActivityType)}
-                className="w-full px-3.5 py-2.5 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] focus:border-[#7D39EB] focus:outline-none focus:bg-white text-xs text-[#111111]"
+                onChange={(e) => setActivityType(e.target.value as ActivityType | '')}
+                className={`w-full px-3.5 py-2.5 rounded-lg bg-[#F8FAFC] border ${
+                  formErrors.activityType ? 'border-rose-500' : 'border-[#E2E8F0]'
+                } focus:border-[#7D39EB] focus:outline-none focus:bg-white text-xs ${activityType ? 'text-[#111111]' : 'text-[#64748B]'}`}
               >
+                <option value="" disabled>활동 방식 선택</option>
                 <option value="hybrid">대면 / 비대면 혼합</option>
                 <option value="online">온라인 (비대면 중심)</option>
                 <option value="offline">오프라인 (대면 중심)</option>
               </select>
+              {formErrors.activityType && (
+                <span className="text-[11px] text-rose-500 mt-1 block">{formErrors.activityType}</span>
+              )}
             </div>
 
             <div>
@@ -294,7 +309,7 @@ export const RecruitmentCreatePage: React.FC<{ source?: RecruitmentSource | null
               onChange={(e) => setExpectedDuration(e.target.value)}
               className={`w-full px-3.5 py-2.5 rounded-lg bg-[#F8FAFC] border ${
                 formErrors.expectedDuration ? 'border-rose-500' : 'border-[#E2E8F0]'
-              } focus:border-[#7D39EB] focus:outline-none focus:bg-white text-xs text-[#111111]`}
+              } focus:border-[#7D39EB] focus:outline-none focus:bg-white text-xs text-[#111111] placeholder:text-[#94A3B8]`}
             />
             {formErrors.expectedDuration && (
               <span className="text-[11px] text-rose-500 mt-1 block">
@@ -315,7 +330,7 @@ export const RecruitmentCreatePage: React.FC<{ source?: RecruitmentSource | null
               onChange={(e) => setRolesInput(e.target.value)}
               className={`w-full px-3.5 py-2.5 rounded-lg bg-[#F8FAFC] border ${
                 formErrors.roles ? 'border-rose-500' : 'border-[#E2E8F0]'
-              } focus:border-[#7D39EB] focus:outline-none focus:bg-white text-xs text-[#111111]`}
+              } focus:border-[#7D39EB] focus:outline-none focus:bg-white text-xs text-[#111111] placeholder:text-[#94A3B8]`}
             />
             {formErrors.roles && (
               <span className="text-[11px] text-rose-500 mt-1 block">{formErrors.roles}</span>
@@ -334,7 +349,7 @@ export const RecruitmentCreatePage: React.FC<{ source?: RecruitmentSource | null
               onChange={(e) => setTechStacksInput(e.target.value)}
               className={`w-full px-3.5 py-2.5 rounded-lg bg-[#F8FAFC] border ${
                 formErrors.requiredTechStacks ? 'border-rose-500' : 'border-[#E2E8F0]'
-              } focus:border-[#7D39EB] focus:outline-none focus:bg-white text-xs text-[#111111]`}
+              } focus:border-[#7D39EB] focus:outline-none focus:bg-white text-xs text-[#111111] placeholder:text-[#94A3B8]`}
             />
             {formErrors.requiredTechStacks && (
               <span className="text-[11px] text-rose-500 mt-1 block">

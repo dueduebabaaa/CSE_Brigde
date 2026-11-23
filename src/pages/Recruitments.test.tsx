@@ -12,6 +12,8 @@ import { RecruitmentsPage } from './RecruitmentsPage';
 import { RecruitmentDetailPage } from './RecruitmentDetailPage';
 import { RecruitmentCreatePage } from './RecruitmentCreatePage';
 import { RecruitmentEditPage } from './RecruitmentEditPage';
+import { ProjectsPage } from './ProjectsPage';
+import { getRecruitments } from '../services/recruitmentService';
 import type { Application, Recruitment } from '../types';
 
 const testAuth = vi.hoisted(() => ({
@@ -29,7 +31,12 @@ vi.mock('../hooks/useAuth', () => ({
 vi.mock('../contexts/MyProfileContext', () => ({
   useMyProfile: () => ({
     userId: testAuth.user?.id || null,
+    status: 'ready',
   }),
+}));
+
+vi.mock('../services/recruitmentService', () => ({
+  getRecruitments: vi.fn(),
 }));
 
 afterEach(cleanup);
@@ -346,7 +353,25 @@ describe('RecruitmentCreatePage (모집글 작성 화면)', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText('팀장 1명 + 추가 모집 4명 = 총 5명 규모')).toBeTruthy();
+    const duration = screen.getByPlaceholderText(/약 2개월/) as HTMLInputElement;
+    const roles = screen.getByPlaceholderText(/Frontend, Backend/) as HTMLInputElement;
+    const stacks = screen.getByPlaceholderText(/React, TypeScript, Node.js/) as HTMLInputElement;
+    const count = screen.getByLabelText(/추가 모집 인원/) as HTMLInputElement;
+    const activity = screen.getByLabelText(/활동 방식/) as HTMLSelectElement;
+    const submitBtn = screen.getByRole('button', { name: '모집글 등록하기' });
+
+    for (const field of [duration, roles, stacks, count, activity]) {
+      expect(field.value).toBe('');
+    }
+    expect(screen.queryByText(/총 .* 규모/)).toBeNull();
+
+    fireEvent.click(submitBtn);
+    expect(screen.getByText('예상 활동 기간을 입력해 주세요.')).toBeTruthy();
+    expect(screen.getByText('모집할 역할을 최소 1개 이상 지정해 주세요.')).toBeTruthy();
+    expect(screen.getByText('필요 기술 스택을 최소 1개 이상 지정해 주세요.')).toBeTruthy();
+    expect(screen.getByText('추가 모집 인원은 1명 이상의 정수여야 합니다.')).toBeTruthy();
+    expect(screen.getByText('활동 방식을 선택해 주세요.')).toBeTruthy();
+    expect(source.createRecruitment).not.toHaveBeenCalled();
 
     const titleInput = screen.getByPlaceholderText(/예: \[해커톤\]/);
     fireEvent.change(titleInput, { target: { value: '신규 프로젝트 팀원 모집' } });
@@ -354,7 +379,24 @@ describe('RecruitmentCreatePage (모집글 작성 화면)', () => {
     const contentInput = screen.getByPlaceholderText(/프로젝트의 목표/);
     fireEvent.change(contentInput, { target: { value: '방학 동안 사이드 프로젝트를 진행합니다.' } });
 
-    const submitBtn = screen.getByRole('button', { name: '모집글 등록하기' });
+    fireEvent.change(duration, { target: { value: '3주' } });
+    fireEvent.change(roles, { target: { value: 'Designer, QA' } });
+    fireEvent.change(stacks, { target: { value: 'Figma, Playwright' } });
+    fireEvent.change(activity, { target: { value: 'online' } });
+
+    for (const value of ['0', '-1', '1.5', '2abc']) {
+      fireEvent.change(count, { target: { value } });
+      fireEvent.click(submitBtn);
+      expect(screen.getByText('추가 모집 인원은 1명 이상의 정수여야 합니다.')).toBeTruthy();
+      expect(source.createRecruitment).not.toHaveBeenCalled();
+    }
+    fireEvent.change(count, { target: { value: '21' } });
+    fireEvent.click(submitBtn);
+    expect(screen.getByText('추가 모집 인원은 최대 20명까지 입력할 수 있습니다.')).toBeTruthy();
+    expect(source.createRecruitment).not.toHaveBeenCalled();
+
+    fireEvent.change(count, { target: { value: '1' } });
+    expect(screen.getByText('팀장 1명 + 추가 모집 1명 = 총 2명 규모')).toBeTruthy();
     fireEvent.click(submitBtn);
 
     await waitFor(() => {
@@ -362,7 +404,11 @@ describe('RecruitmentCreatePage (모집글 작성 화면)', () => {
         expect.objectContaining({
           title: '신규 프로젝트 팀원 모집',
           content: '방학 동안 사이드 프로젝트를 진행합니다.',
-          targetMemberCount: 4,
+          targetMemberCount: 1,
+          expectedDuration: '3주',
+          roles: ['Designer', 'QA'],
+          requiredTechStacks: ['Figma', 'Playwright'],
+          activityType: 'online',
         })
       );
     });
@@ -425,8 +471,35 @@ describe('RecruitmentEditPage (모집글 수정 화면)', () => {
         'rec-test-1',
         expect.objectContaining({
           title: '수정된 모집글 제목',
+          targetMemberCount: 4,
+          expectedDuration: '2개월',
+          requiredTechStacks: ['React', 'TypeScript'],
+          activityType: 'hybrid',
         })
       );
     });
+  });
+});
+
+describe('ProjectsPage (내 프로젝트)', () => {
+  it('본인이 작성한 모집글만 표시하고 지원 내역은 준비 상태로 안내한다', async () => {
+    testAuth.user = { id: mockRecruitment.authorId };
+    vi.mocked(getRecruitments).mockResolvedValueOnce({
+      data: [
+        mockRecruitment,
+        { ...mockRecruitment, id: 'other-post', authorId: 'other-user', title: '다른 학생의 모집글' },
+      ],
+      error: null,
+    });
+
+    render(
+      <MemoryRouter>
+        <ProjectsPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText(mockRecruitment.title)).toBeTruthy();
+    expect(screen.queryByText('다른 학생의 모집글')).toBeNull();
+    expect(screen.getByText('지원 내역 조회 기능을 준비하고 있어요.')).toBeTruthy();
   });
 });
