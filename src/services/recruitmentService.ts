@@ -42,6 +42,14 @@ type AuthResult = { user: SchoolUser; error: null } | { user: null; error: Recru
 const ACTIVITY_TYPES: readonly ActivityType[] = ['online', 'offline', 'hybrid'];
 const RECRUITMENT_STATUSES: readonly RecruitmentStatus[] = ['recruiting', 'completed', 'cancelled'];
 const APPLICATION_STATUSES: readonly ApplicationStatus[] = ['pending', 'accepted', 'rejected', 'cancelled'];
+export interface MyRecruitmentApplication {
+  applicationId: string;
+  recruitmentId: string;
+  applicationStatus: ApplicationStatus;
+  appliedAt: string;
+  recruitmentTitle: string;
+  recruitmentStatus: RecruitmentStatus;
+}
 
 export const RECRUITMENT_COLUMNS = [
   'id', 'opportunity_id', 'custom_opportunity_title', 'custom_opportunity_url', 'title', 'content',
@@ -450,7 +458,79 @@ export async function getApplicationsForRecruitment(
     return responseFromError(error);
   }
 }
+/** 로그인한 사용자가 직접 지원한 모집글 목록을 조회합니다. */
+export async function getMyRecruitmentApplications():
+  Promise<RecruitmentServiceResponse<MyRecruitmentApplication[]>> {
+  const auth = await authUser();
+  if (auth.error) return auth.error;
 
+  try {
+    const { data, error } = await supabase
+      .from('applications')
+      .select(`
+        id,
+        recruitment_id,
+        status,
+        created_at,
+        recruitment:recruitments!applications_recruitment_id_fkey (
+          title,
+          status
+        )
+      `)
+      .eq('applicant_id', auth.user.id)
+      .order('created_at', { ascending: false });
+
+    if (error) return responseFromError(error);
+
+    if (!Array.isArray(data)) {
+      return fail('INVALID_RESPONSE', '지원 내역 응답 형식이 올바르지 않습니다.');
+    }
+
+    const applications: MyRecruitmentApplication[] = [];
+
+    for (const row of data) {
+      if (!isRecord(row)) {
+        return fail('INVALID_RESPONSE', '지원 내역 데이터 형식이 올바르지 않습니다.');
+      }
+
+      const recruitment = row.recruitment;
+      if (!isRecord(recruitment)) {
+        return fail('INVALID_RESPONSE', '연결된 모집글 정보를 확인할 수 없습니다.');
+      }
+
+      const applicationId = stringField(row, 'id');
+      const recruitmentId = stringField(row, 'recruitment_id');
+      const applicationStatus = row.status;
+      const appliedAt = stringField(row, 'created_at');
+      const recruitmentTitle = stringField(recruitment, 'title');
+      const recruitmentStatus = recruitment.status;
+
+      if (
+        !applicationId ||
+        !recruitmentId ||
+        !isOneOf(APPLICATION_STATUSES, applicationStatus) ||
+        !validDate(appliedAt) ||
+        !recruitmentTitle ||
+        !isOneOf(RECRUITMENT_STATUSES, recruitmentStatus)
+      ) {
+        return fail('INVALID_RESPONSE', '지원 내역 데이터 형식이 올바르지 않습니다.');
+      }
+
+      applications.push({
+        applicationId,
+        recruitmentId,
+        applicationStatus,
+        appliedAt,
+        recruitmentTitle,
+        recruitmentStatus,
+      });
+    }
+
+    return ok(applications);
+  } catch (error) {
+    return responseFromError(error);
+  }
+}
 /** Only a recruitment author may accept/reject a pending application; the RPC updates capacity atomically. */
 export async function updateApplicationStatus(
   applicationId: string,
