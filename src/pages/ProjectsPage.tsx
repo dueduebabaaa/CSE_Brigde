@@ -96,6 +96,8 @@ export const ProjectsPage: React.FC = () => {
 
   const isLoading = status === 'loading' || loading;
   const applicationResponse = applicationQuery?.userId === userId ? applicationQuery?.response : null;
+  const isApplicationLoading = status === 'loading' || (canViewRecruitments && !applicationResponse);
+  const acceptedApplications = applicationResponse?.data?.filter(({ applicationStatus }) => applicationStatus === 'accepted') ?? [];
   const count = !isLoading && canViewRecruitments && error === null
     ? `${recruitments.length}개`
     : '—';
@@ -221,7 +223,7 @@ export const ProjectsPage: React.FC = () => {
           <h2 className="font-bold text-[#111111]">
             내가 지원한 모집글
           </h2>
-          {status === 'loading' || (canViewRecruitments && !applicationResponse) ? (
+          {isApplicationLoading ? (
             <p role="status" className="text-sm text-[#64748B]">지원 내역을 불러오는 중입니다.</p>
           ) : !canViewRecruitments ? (
             <p className="text-sm text-[#64748B]">로그인과 프로필 설정을 완료하면 지원 내역을 확인할 수 있어요.</p>
@@ -262,14 +264,32 @@ export const ProjectsPage: React.FC = () => {
           )}
         </div>
 
-        <div className="p-6 rounded-2xl bg-white border border-[#E2E8F0] space-y-2">
-          <h2 className="font-bold text-[#111111]">
-            참여 중인 프로젝트
-          </h2>
-          <p className="text-sm text-[#64748B]">
-            승인된 프로젝트 참여 내역을 연결할 예정이에요.
-          </p>
-        </div>
+        <section aria-label="참여 확정된 프로젝트" className="p-6 rounded-2xl bg-white border border-[#E2E8F0] space-y-2">
+          <h2 className="font-bold text-[#111111]">참여 확정된 프로젝트</h2>
+          <p className="text-sm text-[#64748B]">지원이 수락된 모집글을 표시합니다.</p>
+          {isApplicationLoading ? (
+            <p role="status" className="text-sm text-[#64748B]">참여 내역을 불러오는 중입니다.</p>
+          ) : !canViewRecruitments ? (
+            <p className="text-sm text-[#64748B]">로그인과 프로필 설정을 완료하면 참여 내역을 확인할 수 있어요.</p>
+          ) : applicationResponse?.error || !applicationResponse?.data ? (
+            <p role="alert" className="text-sm text-rose-700">참여 내역을 불러오지 못했어요.</p>
+          ) : acceptedApplications.length === 0 ? (
+            <p className="text-sm text-[#64748B]">아직 지원이 수락된 모집글이 없습니다.</p>
+          ) : (
+            <ul className="space-y-2">
+              {acceptedApplications.map(({ applicationId, recruitmentId, recruitmentTitle }) => (
+                <li key={applicationId} className="space-y-2 rounded-xl border border-[#E2E8F0] p-3">
+                  <h3 className="break-words text-sm font-bold text-[#111111]">{recruitmentTitle}</h3>
+                  <Link to={'/recruitments/' + encodeURIComponent(recruitmentId)}
+                    aria-label={recruitmentTitle + ' 모집글 상세보기'}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-[#7D39EB] hover:underline">
+                    모집글 상세보기 <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       </section>
     </div>
   );
