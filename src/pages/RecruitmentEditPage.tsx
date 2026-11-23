@@ -27,7 +27,9 @@ export const RecruitmentEditPage: React.FC<{ source?: RecruitmentSource | null }
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [targetMemberCount, setTargetMemberCount] = useState<number>(4);
+  const [memberCountInput, setMemberCountInput] = useState('');
+  const targetMemberCount = /^[0-9]+$/.test(memberCountInput) ? Number(memberCountInput) : NaN;
+  const hasValidMemberCount = Number.isInteger(targetMemberCount) && targetMemberCount >= 1 && targetMemberCount <= 20;
   const [activityType, setActivityType] = useState<ActivityType>('hybrid');
   const [expectedDuration, setExpectedDuration] = useState('');
   const [deadline, setDeadline] = useState('');
@@ -60,7 +62,7 @@ export const RecruitmentEditPage: React.FC<{ source?: RecruitmentSource | null }
       setRecruitment(rec);
       setTitle(rec.title);
       setContent(rec.content);
-      setTargetMemberCount(rec.targetMemberCount);
+      setMemberCountInput(String(rec.targetMemberCount));
       setActivityType(rec.activityType);
       setExpectedDuration(rec.expectedDuration);
       setDeadline(rec.deadline ? rec.deadline.split('T')[0] : '');
@@ -111,7 +113,10 @@ export const RecruitmentEditPage: React.FC<{ source?: RecruitmentSource | null }
       customOpportunityUrl: opportunityType === 'custom' ? customOpportunityUrl : null,
     });
 
-    if (!validation.isValid) {
+    if (targetMemberCount > 20) {
+      validation.errors.targetMemberCount = '추가 모집 인원은 최대 20명까지 입력할 수 있습니다.';
+    }
+    if (!validation.isValid || targetMemberCount > 20) {
       setFormErrors(validation.errors);
       return;
     }
@@ -355,22 +360,24 @@ export const RecruitmentEditPage: React.FC<{ source?: RecruitmentSource | null }
           {/* 인원, 활동 방식, 마감일 */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-[#111111] mb-1.5">
+              <label htmlFor="edit-recruitment-member-count" className="block text-xs font-semibold text-[#111111] mb-1.5">
                 추가 모집 인원 (작성자 제외, 명) <span className="text-[#7D39EB]">*</span>
               </label>
               <input
-                type="number"
-                min={1}
-                max={20}
-                value={targetMemberCount}
-                onChange={(e) => setTargetMemberCount(parseInt(e.target.value, 10) || 1)}
+                id="edit-recruitment-member-count"
+                type="text"
+                inputMode="numeric"
+                value={memberCountInput}
+                onChange={(e) => setMemberCountInput(e.target.value)}
                 className={`w-full px-3.5 py-2.5 rounded-lg bg-[#F8FAFC] border ${
                   formErrors.targetMemberCount ? 'border-rose-500' : 'border-[#E2E8F0]'
                 } focus:border-[#7D39EB] focus:outline-none focus:bg-white text-xs text-[#111111]`}
               />
-              <span className="text-[10px] text-[#64748B] mt-1 block">
-                팀장 1명 + 추가 모집 {targetMemberCount}명 = 총 {targetMemberCount + 1}명 규모
-              </span>
+              {hasValidMemberCount && (
+                <span className="text-[10px] text-[#64748B] mt-1 block">
+                  팀장 1명 + 추가 모집 {targetMemberCount}명 = 총 {targetMemberCount + 1}명 규모
+                </span>
+              )}
               {formErrors.targetMemberCount && (
                 <span className="text-[11px] text-rose-500 mt-1 block">
                   {formErrors.targetMemberCount}
