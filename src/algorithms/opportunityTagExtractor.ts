@@ -126,6 +126,7 @@ const TECH_CANDIDATE_KEYWORDS = [
  * 탐색 대상 주요 분야 키워드 사전
  */
 const FIELD_CANDIDATE_KEYWORDS = [
+  'AI',
   '인공지능',
   'artificial intelligence',
   'machine learning',
@@ -172,7 +173,7 @@ const BUILT_TECH_MATCHERS: KeywordMatcher[] = TECH_CANDIDATE_KEYWORDS.map((k) =>
 }));
 
 const BUILT_FIELD_MATCHERS: KeywordMatcher[] = FIELD_CANDIDATE_KEYWORDS.map((k) => ({
-  pattern: /[가-힣]/.test(k) ? createKoreanKeywordRegex(k) : createWordBoundaryRegex(k),
+  pattern: (k === 'AI' || /[가-힣]/.test(k)) ? createKoreanKeywordRegex(k) : createWordBoundaryRegex(k),
   rawTag: k,
 }));
 
