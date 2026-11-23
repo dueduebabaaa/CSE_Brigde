@@ -5,7 +5,8 @@ import { Button, Card, Input, PageHeader, Select } from '../components/ui';
 import type { Availability, DayOfWeek } from '../types';
 
 const DAYS = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
-const dayOptions = [1, 2, 3, 4, 5, 6, 0].map((day) => ({ value: String(day), label: DAYS[day] }));
+const WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0] as const;
+const dayOptions = WEEKDAY_ORDER.map((day) => ({ value: String(day), label: DAYS[day] }));
 const startOptions = Array.from({ length: 48 }, (_, slot) => ({ value: String(slot), label: slotToTimeString(slot) }));
 const endOptions = Array.from({ length: 48 }, (_, slot) => ({ value: String(slot + 1), label: slotToTimeString(slot, true) }));
 const durationOptions = [30, 60, 90, 120].map((minutes) => ({ value: String(minutes), label: minutes + '분' }));
@@ -41,6 +42,69 @@ function toAvailabilityMap(members: ScheduleMember[]): Record<string, Availabili
   }));
 }
 
+function WeeklyAvailabilityGrid({ availability }: { availability: Record<string, Availability[]> | null }) {
+  const members = Object.values(availability ?? {});
+  const counts = DAYS.map(() => Array<number>(startOptions.length).fill(0));
+  // Each member contributes at most one entry per day and slot from toAvailabilityMap.
+  for (const slots of members) {
+    for (const { dayOfWeek, slot } of slots) counts[dayOfWeek][slot]++;
+  }
+  const hasAvailability = members.some((slots) => slots.length > 0);
+
+  return (
+    <section aria-label="주간 가능 시간표" className="min-w-0">
+      <Card className="min-w-0 space-y-3">
+        <h2 className="text-sm font-bold text-[#0F172A]">주간 가능 시간표</h2>
+        {availability === null ? <p className="text-sm text-[#64748B]">구간 입력을 완료하면 시간표를 표시합니다.</p>
+          : members.length === 0 ? <p className="text-sm text-[#64748B]">팀원을 추가하면 시간표를 확인할 수 있습니다.</p>
+          : <>
+            {!hasAvailability && <p className="text-sm text-[#64748B]">입력된 가능 시간이 없습니다.</p>}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[#475569]">
+              <span className="flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-3 rounded bg-[#C6FF33]" />전원 가능</span>
+              <span className="flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-3 rounded bg-[#F4EFFE]" />일부 가능</span>
+              <span className="flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-3 rounded border border-[#E2E8F0] bg-white" />가능 인원 없음</span>
+            </div>
+            <p className="text-xs text-[#64748B]">한국 시간 · 30분 단위 · 스크롤하여 전체 시간과 요일을 확인하세요.</p>
+            <div role="region" aria-label="주간 시간표 스크롤 영역" tabIndex={0}
+              className="max-h-96 overflow-auto rounded-lg border border-[#E2E8F0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#7D39EB]">
+              <table className="w-full min-w-[40rem] table-fixed border-separate border-spacing-0 text-center text-xs">
+                <caption className="sr-only">요일별 30분 구간 참석 가능 인원</caption>
+                <thead>
+                  <tr>
+                    <th scope="col" className="sticky left-0 top-0 z-20 w-28 border-b border-r border-[#E2E8F0] bg-[#F8FAFC] px-2 py-2">시간</th>
+                    {WEEKDAY_ORDER.map((day) => (
+                      <th key={day} scope="col" className="sticky top-0 z-10 border-b border-[#E2E8F0] bg-[#F8FAFC] px-2 py-2">{DAYS[day]}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {startOptions.map(({ label }, slot) => {
+                    const interval = `${label}–${slotToTimeString(slot, true)}`;
+                    return (
+                      <tr key={slot}>
+                        <th scope="row" className="sticky left-0 z-10 whitespace-nowrap border-b border-r border-[#E2E8F0] bg-[#F8FAFC] px-2 py-1.5 font-medium">{interval}</th>
+                        {WEEKDAY_ORDER.map((day) => {
+                          const count = counts[day][slot];
+                          const state = count === members.length ? '전원 가능' : count > 0 ? '일부 가능' : '가능 인원 없음';
+                          const tone = count === members.length ? 'bg-[#C6FF33] font-bold text-[#0F172A]'
+                            : count > 0 ? 'bg-[#F4EFFE] font-semibold text-[#6025C5]' : 'bg-white text-[#64748B]';
+                          return (
+                            <td key={day} aria-label={`${DAYS[day]} ${interval}, ${count}/${members.length}명, ${state}`}
+                              className={`border-b border-r border-[#E2E8F0] px-2 py-1.5 tabular-nums ${tone}`}>{count}/{members.length}명</td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>}
+      </Card>
+    </section>
+  );
+}
+
 export function SchedulePage() {
   const pageId = useId();
   const nextMemberId = useRef(1);
@@ -49,7 +113,8 @@ export function SchedulePage() {
   const [duration, setDuration] = useState('60');
   const hasInvalidRange = members.some((member) => member.ranges.some((range) => !isCompleteRange(range)));
   const hasTime = members.some((member) => member.ranges.length > 0);
-  const results = hasTime && !hasInvalidRange ? calculateOptimalMeetingSlots(toAvailabilityMap(members), Number(duration)) : [];
+  const availability = hasInvalidRange ? null : toAvailabilityMap(members);
+  const results = hasTime && availability ? calculateOptimalMeetingSlots(availability, Number(duration)) : [];
   const names = new Map(members.map((member) => [String(member.id), member.name.trim() || `팀원 ${member.id}`]));
 
   function updateMember(id: number, update: (member: ScheduleMember) => ScheduleMember) {
@@ -150,6 +215,7 @@ export function SchedulePage() {
           </Card>
         </section>
       </div>
+      <WeeklyAvailabilityGrid availability={availability} />
     </div>
   );
 }
