@@ -54,6 +54,13 @@ export function Recommendation({ match, demo }: { match?: MatchResult; demo?: bo
   </div> : null;
 }
 
+export function UnavailableEvaluation({ reason }: { reason?: string }) {
+  return <div className="space-y-1 break-words text-xs leading-relaxed text-[#64748B]">
+    <p className="font-semibold">평가 불가</p>
+    {reason && <p>{reason}</p>}
+  </div>;
+}
+
 const COLORS: Record<OpportunityCategory, { background: string; ink: string }> = {
   '해커톤': { background: '#000000', ink: '#C6FF33' },
   '공모전': { background: '#7D39EB', ink: '#FFFFFF' },
@@ -83,8 +90,8 @@ export function OpportunityGraphic({ category, compact = false, layout }: {
 }
 
 const SOURCE_LABELS = { knu_cse_official: '학부 공식 공고', admin_manual: '관리자 등록', user_manual: '회원 등록' };
-export function OpportunityTile({ opportunity, match, now, demo = false, list = false, listSearch = '', saved = false, onBookmark }: {
-  opportunity: Opportunity; match?: MatchResult; now: Date; demo?: boolean; list?: boolean;
+export function OpportunityTile({ opportunity, match, unavailableEvaluation, now, demo = false, list = false, listSearch = '', saved = false, onBookmark }: {
+  opportunity: Opportunity; match?: MatchResult; unavailableEvaluation?: MatchResult; now: Date; demo?: boolean; list?: boolean;
   listSearch?: string; saved?: boolean; onBookmark?: (id: string, next: boolean) => Promise<void>;
 }) {
   const status = opportunityStatus(opportunity, now);
@@ -104,8 +111,10 @@ export function OpportunityTile({ opportunity, match, now, demo = false, list = 
         {opportunity.tags.slice(0, 2).map((tag) => <span key={tag} className="min-w-0 max-w-full break-words rounded border border-[#E2E8F0] bg-[#F1F5F9] px-1 py-0.5 text-[10px] text-[#0F172A]" title={tag}>{tag}</span>)}
         {opportunity.tags.length > 2 && <span className="shrink-0 text-[10px] text-[#64748B]">+{opportunity.tags.length - 2}</span>}
       </div>
-      <p className="mt-2 min-h-4 text-[10px] font-semibold leading-4 text-[#7D39EB]">{match ? `${demo ? '예시 적합도' : '추천 적합도'} ${Math.round(match.score)}%` : '\u00a0'}</p>
-      {match && <p className="mt-1 text-[10px] leading-4 text-[#64748B] break-words">{match.reasons[0] || '추천 이유 미제공'}</p>}
+      {unavailableEvaluation ? <div className="mt-2"><UnavailableEvaluation reason={unavailableEvaluation.reasons[0]} /></div> : <>
+        <p className="mt-2 min-h-4 text-[10px] font-semibold leading-4 text-[#7D39EB]">{match ? `${demo ? '예시 적합도' : '추천 적합도'} ${Math.round(match.score)}%` : '\u00a0'}</p>
+        {match && <p className="mt-1 text-[10px] leading-4 text-[#64748B] break-words">{match.reasons[0] || '추천 이유 미제공'}</p>}
+      </>}
     </div>}
     <div className={`${list ? 'flex' : 'hidden sm:flex'} min-w-0 flex-1 flex-col`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -120,6 +129,7 @@ export function OpportunityTile({ opportunity, match, now, demo = false, list = 
         <span>등록 {formatDate(opportunity.postedAt)}</span>
       </div>
       {match && <div className="mt-4 border-t border-[#E2E8F0] pt-4"><Recommendation match={match} demo={demo} /></div>}
+      {unavailableEvaluation && <div className="mt-4 border-t border-[#E2E8F0] pt-4"><UnavailableEvaluation reason={unavailableEvaluation.reasons[0]} /></div>}
       <Link to={to} className="mt-auto flex min-h-11 items-center justify-between gap-2 pt-3 text-xs font-semibold text-[#0F172A] hover:text-[#7D39EB]">상세 보기<ArrowUpRight size={16} aria-hidden="true" /></Link>
     </div>
   </article>;

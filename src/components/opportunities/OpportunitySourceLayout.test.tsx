@@ -214,28 +214,54 @@ describe('실제 데이터 형식의 공고 추천 라우트', () => {
     expect(recommendationMap([...matches.values()]).size).toBe(0);
   });
 
-  it('평가 불가 공고는 점수를 숨기고 실제 0점 공고만 평가 결과를 표시한다', async () => {
-    const unknown = { ...rows[1], id: 'unknown', title: '일정 안내', tags: ['산학협력'] };
-    mocks.opportunityRows.mockResolvedValue({ data: [rows[1], unknown], error: null });
+  it('탐색과 상세가 같은 공고의 0점, 평가 불가, 추천 제외를 구분한다', async () => {
+    const unknown = { ...rows[2], id: 'unknown', title: '일정 안내', tags: ['산학협력'] };
+    mocks.opportunityRows.mockResolvedValue({ data: [rows[0], rows[1], unknown], error: null });
     render(<TestRoutes initialEntry="/opportunities" />);
-    await screen.findByText('검색 결과 2개');
-    const cards = screen.getAllByRole('article');
-    const unknownCard = cards.find(card => card.textContent?.includes(unknown.title))!;
-    const zeroCard = cards.find(card => card.textContent?.includes(rows[1].title))!;
-    expect(within(unknownCard).queryByText(/추천 적합도/)).toBeNull();
-    expect(within(zeroCard).getAllByText('추천 적합도 0%').length).toBeGreaterThan(0);
+    await screen.findByText('검색 결과 3개');
+    const findCard = (title: string) => within(screen.getAllByRole('article').find(card => card.textContent?.includes(title))!);
+    const opportunities = [rows[0], rows[1], unknown].map((row) => mapOpportunityRow(row)!);
+    const evaluations = getRecommendedOpportunitiesForProfile(firstProfile, opportunities);
+    const unavailable = evaluations.find((result) => result.targetId === unknown.id)!;
+    const zero = evaluations.find((result) => result.targetId === rows[1].id)!;
+    expect(unavailable.evaluable).toBe(false);
+    expect(zero).toMatchObject({ evaluable: true, score: 0 });
+    expect(evaluations.some((result) => result.targetId === rows[0].id)).toBe(false);
+
+    for (const view of ['카드형 보기', '목록형 보기']) {
+      fireEvent.click(screen.getByRole('button', { name: view }));
+      expect(findCard(unknown.title).queryByText(/추천 적합도/)).toBeNull();
+      expect(findCard(unknown.title).getAllByText('평가 불가').length).toBeGreaterThan(0);
+      expect(findCard(unknown.title).getAllByText(unavailable.reasons[0]).length).toBeGreaterThan(0);
+      expect(findCard(rows[1].title).getAllByText('추천 적합도 0%').length).toBeGreaterThan(0);
+      expect(findCard(rows[1].title).getAllByText(zero.reasons[0]).length).toBeGreaterThan(0);
+      expect(findCard(rows[0].title).queryByText(/추천 적합도|평가 불가/)).toBeNull();
+      expect(findCard(rows[0].title).queryByText(unavailable.reasons[0])).toBeNull();
+      expect(findCard(rows[0].title).queryByText(zero.reasons[0])).toBeNull();
+    }
     expect(screen.getByRole('option', { name: '추천순' })).toHaveProperty('disabled', false);
     fireEvent.change(screen.getByLabelText('공고 정렬'), { target: { value: 'recommended' } });
     expect(screen.getByLabelText('공고 정렬')).toHaveProperty('value', 'recommended');
     expect(screen.getByText('일치하는 추천 공고가 없어 공고를 최신순으로 표시해요.')).toBeTruthy();
     expect(screen.getByRole('button', { name: /추천 공고/ }).textContent).toContain('0');
-    fireEvent.click(within(unknownCard).getByRole('link', { name: '상세 보기' }));
-    const reasons = within(screen.getByRole('region', { name: '추천 이유' }));
-    expect(reasons.queryByText(/추천 적합도/)).toBeNull();
-    const opportunity = mapOpportunityRow(unknown)!;
-    const evaluation = getRecommendedOpportunitiesForProfile(firstProfile, [opportunity])[0];
-    expect(evaluation.evaluable).toBe(false);
-    expect(reasons.getByText(evaluation.reasons[0])).toBeTruthy();
+    const openDetail = (title: string) => {
+      fireEvent.click(findCard(title).getByRole('link', { name: '상세 보기' }));
+      return within(screen.getByRole('region', { name: '추천 이유' }));
+    };
+    const unavailableDetail = openDetail(unknown.title);
+    expect(unavailableDetail.queryByText(/추천 적합도/)).toBeNull();
+    expect(unavailableDetail.getByText('평가 불가')).toBeTruthy();
+    expect(unavailableDetail.getByText(unavailable.reasons[0])).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('link', { name: '탐색으로 이동' }));
+    const zeroDetail = openDetail(rows[1].title);
+    expect(zeroDetail.getByText('추천 적합도 0%')).toBeTruthy();
+    expect(zeroDetail.getByText(zero.reasons[0])).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('link', { name: '탐색으로 이동' }));
+    const excludedDetail = openDetail(rows[0].title);
+    expect(excludedDetail.queryByText(/추천 적합도|평가 불가/)).toBeNull();
+    expect(excludedDetail.getByText('모집이 종료된 공고는 추천 평가에서 제외돼요.')).toBeTruthy();
   });
 
   it('프로필이 아직 없을 때 추천 필터가 전체 공고를 추천 결과로 표시하지 않는다', async () => {
