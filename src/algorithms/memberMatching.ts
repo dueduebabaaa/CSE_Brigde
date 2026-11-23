@@ -312,7 +312,7 @@ export function calculateMemberMatch(
   },
   myAvailability: Availability[],
   candidates: {
-    profile: UserProfile;
+    profile: Pick<UserProfile, 'id' | 'visibility' | 'isPublic' | 'desiredRoles' | 'techStacks'>;
     availability: Availability[];
   }[]
 ): MemberMatchResult[] {
