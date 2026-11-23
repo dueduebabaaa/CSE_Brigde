@@ -43,6 +43,8 @@ vi.mock('../services/recruitmentService', () => ({
   getApplicationsForRecruitment: vi.fn(),
 }));
 
+vi.mock('../lib/supabase', () => ({ supabase: {} }));
+
 vi.mock('../layouts/AppLayout', () => ({ AppLayout: Outlet }));
 vi.mock('../contexts/MyProfileProvider', () => ({
   MyProfileProvider: ({ children }: { children: React.ReactNode }) => children,
@@ -498,23 +500,14 @@ describe('ProjectsPage (내 프로젝트)', () => {
 
   afterEach(() => window.history.replaceState(null, '', '/'));
 
-  it('내 프로젝트의 작성 버튼으로 실제 작성 라우트에 진입한다', async () => {
+  it('내 프로젝트 헤더에서 모집글 작성 버튼을 표시하지 않는다', async () => {
     testAuth.user = { id: mockRecruitment.authorId };
     vi.mocked(getRecruitments).mockResolvedValueOnce({ data: [], error: null });
-    vi.mocked(getRecruitmentById).mockResolvedValueOnce({
-      data: null,
-      error: { code: 'NOT_FOUND', message: '모집글을 찾을 수 없습니다.' },
-    });
     window.history.replaceState(null, '', '/projects');
     render(<App />);
 
-    fireEvent.click(screen.getByRole('link', { name: '모집글 작성' }));
-
-    expect(window.location.pathname).toBe('/recruitments/create');
-    expect(await screen.findByRole('button', { name: '모집글 등록하기' })).toBeTruthy();
-    expect(screen.getByPlaceholderText(/약 2개월/)).toBeTruthy();
-    expect(getRecruitmentById).not.toHaveBeenCalled();
-    vi.mocked(getRecruitmentById).mockReset();
+    await screen.findByText('아직 작성한 모집글이 없습니다');
+    expect(screen.queryByRole('link', { name: '모집글 작성' })).toBeNull();
   });
 
   it('내 모집글 상세 링크로 실제 상세 라우트에 진입한다', async () => {
@@ -602,11 +595,12 @@ describe('ProjectsPage (내 프로젝트)', () => {
     render(<App />);
 
     expect(screen.getByText('지원 내역을 불러오는 중입니다.')).toBeTruthy();
-    const firstLink = await screen.findByRole('link', { name: /지원한 모집글 1/ });
+    const applicationsPanel = within(screen.getByRole('heading', { name: '내가 지원한 모집글' }).parentElement!);
+    const firstLink = await applicationsPanel.findByRole('link', { name: /지원한 모집글 1/ });
     const applicationLabels = ['검토 중', '수락됨', '거절됨', '취소됨'];
     const recruitmentLabels = ['모집중', '모집완료', '모집취소', '모집취소'];
     for (const [index, application] of applications.entries()) {
-      const link = screen.getByRole('link', { name: new RegExp(application.recruitmentTitle) });
+      const link = applicationsPanel.getByRole('link', { name: new RegExp(application.recruitmentTitle) });
       expect(within(link).getByText(`지원 상태 · ${applicationLabels[index]}`)).toBeTruthy();
       expect(within(link).getByText(`모집 상태 · ${recruitmentLabels[index]}`)).toBeTruthy();
       expect(within(link).getByText('지원일 2026. 11. 24.').getAttribute('datetime')).toBe(application.appliedAt);
@@ -627,7 +621,8 @@ describe('ProjectsPage (내 프로젝트)', () => {
 
     render(<MemoryRouter><ProjectsPage /></MemoryRouter>);
 
-    expect((await screen.findByRole('alert')).textContent).toBe('지원 내역을 불러오지 못했어요.');
+    const applicationsPanel = within(screen.getByRole('heading', { name: '내가 지원한 모집글' }).parentElement!);
+    expect((await applicationsPanel.findByRole('alert')).textContent).toBe('지원 내역을 불러오지 못했어요.');
     expect(screen.queryByText('아직 지원한 모집글이 없습니다.')).toBeNull();
     expect(await screen.findByText(mockRecruitment.title)).toBeTruthy();
   });
