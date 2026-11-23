@@ -44,6 +44,7 @@ export const App: React.FC = () => {
               <Route path="/" element={<RootRoute />} />
               <Route path="/opportunities" element={<OpportunitiesPage />} />
               <Route path="/opportunities/:id" element={<OpportunityDetailPage />} />
+              <Route path="/bookmarks" element={<BookmarksPage />} />
             </Route>
 
             {/* 인증 및 온보딩 */}
@@ -72,7 +73,6 @@ export const App: React.FC = () => {
             <Route path="/projects/:id" element={<ProjectDetailPage />} />
 
             {/* 북마크 및 마이페이지 */}
-            <Route path="/bookmarks" element={<BookmarksPage />} />
             <Route path="/profile" element={<ProfilePage />} />
 
             {/* 관리자 공고 및 수집 관리 */}
