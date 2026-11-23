@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const supabaseMocks = vi.hoisted(() => ({
   rpc: vi.fn(),
+  upsert: vi.fn(),
+  single: vi.fn(),
   getUser: vi.fn(),
   from: vi.fn(),
   update: vi.fn(),
@@ -18,7 +20,7 @@ vi.mock('../lib/supabase', () => ({
   },
 }));
 
-import { fetchPublicProfileById, searchPublicProfiles, isProfileComplete, mapProfileRow, profileVisibilityFromRow, updateMyProfile } from './profileService';
+import { fetchPublicProfileById, searchPublicProfiles, isProfileComplete, mapProfileRow, saveMyProfile, profileVisibilityFromRow, updateMyProfile } from './profileService';
 
 const baseProfile = {
   id: 'user-1',
@@ -51,6 +53,8 @@ const baseProfile = {
 
 const query = {
   update: supabaseMocks.update,
+  upsert: supabaseMocks.upsert,
+  single: supabaseMocks.single,
   eq: supabaseMocks.eq,
   select: supabaseMocks.select,
   maybeSingle: supabaseMocks.maybeSingle,
@@ -103,6 +107,29 @@ describe('내 프로필 부분 수정', () => {
     supabaseMocks.eq.mockReturnValue(query);
     supabaseMocks.select.mockReturnValue(query);
     supabaseMocks.maybeSingle.mockResolvedValue({ data: baseProfile, error: null });
+  });
+
+  it('저장과 수정의 반환 컬럼을 본인 프로필 타입으로 제한한다', async () => {
+    supabaseMocks.upsert.mockReturnValue(query);
+    supabaseMocks.single.mockResolvedValueOnce({ data: baseProfile, error: null });
+
+    const saved = await saveMyProfile({
+      ...baseProfile,
+      grade: '1학년',
+      track: '플랫폼소프트웨어전공',
+      activity_mode: '혼합',
+      availability_status: '제안 환영',
+      visibility: 'team_only',
+    });
+    const updated = await updateMyProfile({ nickname: '새 닉네임' });
+
+    const expected = mapProfileRow(baseProfile);
+    expect(supabaseMocks.select).toHaveBeenCalledTimes(2);
+    for (const [selection] of supabaseMocks.select.mock.calls) {
+      expect(selection.split(',').sort()).toEqual(Object.keys(expected).sort());
+    }
+    expect(saved).toEqual(expected);
+    expect(updated).toEqual(expected);
   });
 
   it('명시적으로 전달한 빈 문자열, null, 빈 배열만 update하고 기존 필드는 유지한다', async () => {

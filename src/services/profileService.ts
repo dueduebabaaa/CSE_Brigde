@@ -347,10 +347,13 @@ export const searchPublicProfiles = async (
   };
 };
 
+const MY_PROFILE_COLUMNS =
+  'id,email,name,nickname,grade,track,department,bio,long_bio,interests,tech_stacks,tech_proficiency,wanted_tech_stacks,desired_roles,activity_types,activity_goals,activity_mode,activity_duration,availability_status,experiences,github_url,portfolio_url,is_public,visibility,created_at,updated_at';
+
 export const fetchMyProfile = async (userId: string) => {
   const { data, error } = await supabase
     .from('profiles')
-    .select('id,email,name,nickname,grade,track,department,bio,long_bio,interests,tech_stacks,tech_proficiency,wanted_tech_stacks,desired_roles,activity_types,activity_goals,activity_mode,activity_duration,availability_status,experiences,github_url,portfolio_url,is_public,visibility,created_at,updated_at')
+    .select(MY_PROFILE_COLUMNS)
     .eq('id', userId)
     .maybeSingle();
 
@@ -365,7 +368,7 @@ export const saveMyProfile = async (profile: ProfileUpsert) => {
   const { data, error } = await supabase
     .from('profiles')
     .upsert(profile, { onConflict: 'id' })
-    .select()
+    .select(MY_PROFILE_COLUMNS)
     .single();
 
   if (error) {
@@ -470,7 +473,7 @@ export const updateMyProfile = async (updates: ProfileUpdate): Promise<UserProfi
     .from('profiles')
     .update({ ...patch, updated_at: new Date().toISOString() })
     .eq('id', userId)
-    .select()
+    .select(MY_PROFILE_COLUMNS)
     .maybeSingle();
 
   if (error) throw new Error(`프로필 수정 실패: ${error.message}`);
