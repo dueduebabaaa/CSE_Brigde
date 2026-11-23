@@ -217,11 +217,15 @@ describe('실제 데이터 형식의 공고 추천 라우트', () => {
     expect(screen.getByText('검색 결과 3개')).toBeTruthy();
   });
 
-  it('존재하지 않는 마감일이 있는 공고의 추천을 홈·탐색·상세에서 유지한다', async () => {
+  it.each([
+    '리액트 특강 (접수 마감: 2020-02-30 18:00)',
+    '리액트 특강 (1차 접수 마감: 2020-02-20 18:00, 최종 마감: 추후 공지)',
+    '리액트 특강 (설문 응답 마감: 2020-02-20 18:00)',
+  ])('불확실한 마감 공고의 추천을 홈·탐색·상세에서 유지한다 (%s)', async (title) => {
     const notice = {
       ...rows[2],
       id: 'opp-invalid-deadline',
-      title: '리액트 특강 (접수 마감: 2020-02-30 18:00)',
+      title,
       posted_at: '2020-02-01T00:00:00Z',
       deadline: null,
       tags: ['React'],
@@ -231,11 +235,13 @@ describe('실제 데이터 형식의 공고 추천 라우트', () => {
     render(<TestRoutes initialEntry="/" />);
     const home = await screen.findByRole('region', { name: '나에게 맞는 공모전' });
     expect(await within(home).findByText(notice.title)).toBeTruthy();
+    expect(screen.getByRole('link', { name: '공개 공고: 1' })).toBeTruthy();
 
     fireEvent.click(screen.getByRole('link', { name: '탐색으로 이동' }));
     const [card] = await screen.findAllByRole('article');
     expect(within(card).getAllByText(notice.title).length).toBeGreaterThan(0);
     expect(within(card).getAllByText(/추천 적합도/).length).toBeGreaterThan(0);
+    expect(screen.getByText('검색 결과 1개')).toBeTruthy();
 
     fireEvent.click(within(card).getByRole('link', { name: '상세 보기' }));
     const reasons = await screen.findByRole('region', { name: '추천 이유' });

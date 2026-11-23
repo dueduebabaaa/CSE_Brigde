@@ -685,6 +685,72 @@ describe('공모전 맞춤 추천 알고리즘 (recommendOpportunities)', () => 
     });
 
     describe('명시적 텍스트 마감일 추출 및 안전 필터링', () => {
+      it.each([
+        ['1차 접수 마감: 2026-11-05, 최종 마감: 미정', ''],
+        ['접수 마감: 2026-11-05', '최종 접수 마감은 추후 공지'],
+        ['접수 마감: 2026-11-05', '접수 기간 연장 예정'],
+        ['1차 접수 마감: 2026-11-05, 2차 접수 마감: 2026-11-10', ''],
+        ['2차 접수 마감: 2026-11-25, 최종 접수 마감: 2026-11-10', ''],
+        ['1차 접수 마감: 2026-11-05', '최종 마감: 2026-11-10'],
+        ['접수 마감: 2026-11-05, 신청 마감: 2026-11-10', ''],
+        ['설문 응답 마감: 2026-11-05', ''],
+        ['만족도 조사 신청 마감: 2026-11-05', ''],
+        ['교육 종료일: (~2026-11-05 마감)', ''],
+        ['행사 기간: 2026-11-01 ~2026-11-05 마감', ''],
+        ['행사 일정 안내 2026-11-05', '마감 안내는 별도로 공지합니다.'],
+        ['접수 마감: 2026-11-05 18:00 CST', ''],
+        ['접수 마감: 2026-11-05 18:00, UTC 기준', ''],
+        ['접수 마감: 2026-11-05 18:005', ''],
+        ['접수 마감: 2026-11-05 18:00 +09:60', ''],
+      ])('불확실한 마감 공고를 추천에 유지한다 (%s / %s)', (title, description) => {
+        const now = new Date('2026-11-17T12:00:00+09:00');
+        const opportunity = {
+          ...mockOpportunities[0], title, description, deadline: null,
+          postedAt: '2026-11-01T00:00:00+09:00',
+        };
+        expect(extractExplicitDeadline(title, description, opportunity.postedAt)).toBeNull();
+        expect(recommendOpportunities(student, [opportunity], now, {
+          filterExplicitTextDeadline: true,
+        })).toHaveLength(1);
+      });
+
+      it.each([
+        ['18:00 UTC', '2026-11-09T18:00:00.000Z'],
+        ['18:00 (UTC)', '2026-11-09T18:00:00.000Z'],
+        ['UTC 18:00', '2026-11-09T18:00:00.000Z'],
+        ['18:00 KST', '2026-11-09T09:00:00.000Z'],
+        ['18:00+05:30', '2026-11-09T12:30:00.000Z'],
+        ['18:00-0500', '2026-11-09T23:00:00.000Z'],
+        ['18:00 UTC+9', '2026-11-09T09:00:00.000Z'],
+        ['18:00Z', '2026-11-09T18:00:00.000Z'],
+        ['12:00 AM UTC', '2026-11-09T00:00:00.000Z'],
+        ['12:00 PM UTC', '2026-11-09T12:00:00.000Z'],
+        ['오전 12시', '2026-11-08T15:00:00.000Z'],
+        ['오후 12시', '2026-11-09T03:00:00.000Z'],
+        ['2:30 PM', '2026-11-09T05:30:00.000Z'],
+      ])('마감 시각 %s을 정확히 변환한다', (time, expected) => {
+        const title = `지원 마감: 2026-11-09 ${time}`;
+        const opportunity = { ...mockOpportunities[0], title, deadline: null };
+        const instant = new Date(expected);
+        expect(extractExplicitDeadline(title)).toEqual(instant);
+        expect(isExplicitlyExpiredInText(opportunity, instant)).toBe(false);
+        expect(isExplicitlyExpiredInText(opportunity, new Date(instant.getTime() + 1))).toBe(true);
+      });
+
+      it('최종 지원 마감이 확정되면 지난 공고를 제외하고 DB 마감일이 있으면 우선한다', () => {
+        const now = new Date('2026-11-17T12:00:00+09:00');
+        const opportunity = {
+          ...mockOpportunities[0],
+          title: '1차 지원 마감: 2026-11-05, 최종 지원 마감: 2026-11-10',
+          deadline: null,
+          postedAt: '2026-11-01T00:00:00+09:00',
+        };
+        const options = { filterExplicitTextDeadline: true };
+        expect(recommendOpportunities(student, [opportunity], now, options)).toEqual([]);
+        const openInDb = { ...opportunity, deadline: '2026-11-25T18:00:00+09:00' };
+        expect(recommendOpportunities(student, [openInDb], now, options)).toHaveLength(1);
+      });
+
       it('제목/본문에서 한국어 마감일 표기를 정확하게 파싱하여 KST 기준 Date를 반환해야 한다', () => {
         // 1) B의 실제 수집 공고 제목 표본 (~11월 9일 13시 마감)
         const date1 = extractExplicitDeadline(

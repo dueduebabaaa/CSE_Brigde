@@ -35,132 +35,162 @@ export interface RecommendOpportunitiesOptions {
   filterExplicitTextDeadline?: boolean;
 }
 
-/**
- * 텍스트(제목 및 설명)에서 명시적인 접수/신청/모집 마감일시를 엄격하게 추출합니다.
- *
- * [원칙]
- * 1. '마감', '접수 마감', '신청 마감', '모집 마감' 등 명확한 마감 키워드와 결합된 날짜만 인식합니다.
- * 2. '교육 기간', '행사 일시', '활동 기간' 등 행사 자체의 일정은 마감일로 오판하지 않습니다.
- * 3. '선착순 마감', '추후 공지', '상시 모집' 등 구체적 일시가 없는 자연어는 null을 반환합니다.
- * 4. 연도가 생략된 경우 postedAt의 연도를 기준으로 안전하게 보정하며, 기준이 불확실하면 null을 반환합니다.
- * 5. 시간대는 한국 표준시(Asia/Seoul, UTC+9)를 기준으로 계산합니다.
- * 6. 시간 단위가 생략된 경우 해당 일자의 마지막 순간(23:59:59.999 KST)으로 간주하여 조기 마감 오판을 방지합니다.
- *
- * @param title 공고 제목
- * @param description 공고 설명 또는 본문
- * @param postedAt 공고 게시 시각 (연도 추론 보조용)
- * @returns 추출된 마감 Date 객체 (Asia/Seoul 기준 파싱) 또는 null
- */
+const KST_OFFSET_MINUTES = 9 * 60;
+
+function parseDeadlineTime(text: string): { hour: number; minute: number; offsetMinutes: number } | null {
+  const zone = /(?:UTC(?:[+-](?:\d{2}:?\d{2}|\d{1,2}))?|KST|Z|[+-]\d{2}:?\d{2})/gi;
+  const zones = [...text.matchAll(zone)];
+  if (zones.length > 1) return null;
+
+  let offsetMinutes = KST_OFFSET_MINUTES;
+  let clock = text;
+  if (zones.length === 1) {
+    const token = zones[0][0].toUpperCase();
+    const index = zones[0].index ?? 0;
+    if (index !== 0 && index + token.length !== text.length) return null;
+    clock = (index === 0 ? text.slice(token.length) : text.slice(0, index)).trim();
+    if (token !== 'KST') {
+      const offset = token.replace(/^UTC/, '');
+      offsetMinutes = 0;
+      if (offset && offset !== 'Z') {
+        const digits = offset.slice(1).replace(':', '');
+        const hours = Number(digits.slice(0, 2));
+        const minutes = Number(digits.slice(2));
+        // -00:00은 현지 오프셋이 확인되지 않았음을 나타낸다.
+        if (offset === '-00:00' || offset === '-0000' || hours > 23 || minutes > 59) return null;
+        offsetMinutes = (hours * 60 + minutes) * (offset.startsWith('-') ? -1 : 1);
+      }
+    }
+  }
+
+  const match = /^(?:(오전|오후)\s*)?(\d{1,2})(?::(\d{2})|시(?:\s*(\d{1,2})분)?|\s*(?=[AP]M$))\s*(AM|PM)?$/i.exec(clock);
+  if (!match || (match[1] && match[5])) return null;
+  const [, koreanPeriod, rawHour, colonMinute, koreanMinute, englishPeriod] = match;
+  const period = koreanPeriod ?? englishPeriod?.toUpperCase();
+  let hour = Number(rawHour);
+  const minute = Number(colonMinute ?? koreanMinute ?? 0);
+  if (hour > 23 || minute > 59) return null;
+  if (period) {
+    if (hour < 1 || hour > 12) return null;
+    hour = hour % 12 + (period === '오후' || period === 'PM' ? 12 : 0);
+  }
+  return { hour, minute, offsetMinutes };
+}
+
+function parseDeadlineDate(text: string, postedAt?: string | null): Date | null {
+  const match = /^~?\s*(?:(\d{4})[년./-]\s*)?(\d{1,2})[월./-]\s*(\d{1,2})(?:일|\.(?=\s*\([월화수목금토일]\)))?(?:\s*\([월화수목금토일]\))?(.*)$/.exec(text);
+  if (!match) return null;
+  const [, rawYear, rawMonth, rawDay, timeText] = match;
+  const month = Number(rawMonth);
+  const day = Number(rawDay);
+  if (month < 1 || month > 12 || day < 1) return null;
+
+  let year = Number(rawYear);
+  let postedTime: number | undefined;
+  if (!rawYear) {
+    const timestamp = postedAt && parseOpportunityTimestamp(postedAt);
+    if (!timestamp) return null;
+    postedTime = Date.parse(timestamp);
+    const postedInSeoul = new Date(postedTime + KST_OFFSET_MINUTES * 60_000);
+    const postedMonth = postedInSeoul.getUTCMonth() + 1;
+    year = postedInSeoul.getUTCFullYear();
+    if (postedMonth >= 11 && month <= 2) {
+      year += 1;
+    } else if (Math.abs(month - postedMonth) > 6) {
+      return null;
+    }
+  }
+  if (year < 2000 || year > 2100) return null;
+
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (day > daysInMonth[month - 1]) return null;
+
+  // 날짜와 시각 사이의 구분자가 없으면 날짜 일부를 시각으로 해석하지 않는다.
+  if (timeText && !/^[\sT]/.test(timeText)) return null;
+  const clockText = timeText.replace(/^T/, '').trim()
+    .replace(/\s*\((UTC(?:[+-]\d{1,2}(?::?\d{2})?)?|KST)\)$/i, ' $1');
+  const time = clockText ? parseDeadlineTime(clockText) : {
+    hour: 23, minute: 59, offsetMinutes: KST_OFFSET_MINUTES,
+  };
+  if (!time) return null;
+
+  const utc = Date.UTC(year, month - 1, day, time.hour, time.minute, clockText ? 0 : 59, clockText ? 0 : 999);
+  const deadline = utc - time.offsetMinutes * 60_000;
+  if (postedTime !== undefined && deadline < postedTime) return null;
+  return new Date(deadline);
+}
+
+/** 최종 접수 마감이 확실한 경우에만 제목 또는 본문에서 마감 시각을 반환한다. */
 export function extractExplicitDeadline(
   title: string,
   description?: string,
   postedAt?: string | null
 ): Date | null {
-  const text = `${title || ''} ${description || ''}`;
-  if (!text.trim()) return null;
+  const applicationLabel = /(?:^|\()\s*(?:(\d+\s*차|최종)\s*)?(?:접수|신청|모집|지원)\s*마감(?:일(?:시)?)?(?:\s*[:：]\s*|\s+)(.+)$/;
+  const finalLabel = /(?:^|\()\s*최종\s*마감(?:일(?:시)?)?(?:\s*[:：]\s*|\s+)(.+)$/;
+  // 수집 공고의 제목에서 사용하는 독립된 괄호 표기만 일반 '마감'으로 인정한다.
+  const titleDeadline = /\(\s*(~[^()]+(?:\([월화수목금토일]\)[^()]*)?)\s+마감\s*\)\s*$/;
+  const unrelatedSchedule = /설문|만족도\s*조사|결과\s*발표|(?:교육|행사|활동|운영|수업|연수|대회|진행|축제|캠프)\s*(?:기간|일시|일정|종료|마감|일(?=\s*[:：]))/;
+  const uncertainSchedule = /추후\s*(?:공지|안내)|별도(?:로)?\s*(?:공지|안내)|미정|연장|재개|추가\s*(?:접수|신청|지원|모집)|변경\s*(?:예정|가능)|선착순|상시\s*모집|충원\s*시|마감\s*시까지/;
+  const deadlineContext = /마감|접수|신청|모집|지원/;
 
-  // 비마감 일정 접두어 패턴: 행사/교육/활동 등의 자체 일정은 접수 마감일로 오판하지 않음
-  const periodPrefix = /(?:교육|행사|활동|운영|수업|연수|대회|진행|축제|캠프)\s*(?:기간|일시|일정)\s*[:：]?\s*$/i;
+  const deadlines = new Set<number>();
+  const finalDeadlines = new Set<number>();
+  const roundDeadlines = new Set<number>();
 
-  // 명시적 마감일 정규식 패턴 (한국어 공고에서 쓰이는 표준 형식)
-  // 패턴 1: (~|까지)? 날짜 (시각)? 마감
-  // 예: "~11월 9일 13시 마감", "~11.9.(월) 18:00 마감", "~2026.11.09 18시 마감", "~11/9 18:00 마감"
-  const patternBefore = /(?:~|(?<=[^가-힣a-zA-Z0-9]|^))(?:(\d{4})[년./-]\s*)?(\d{1,2})[월./-]\s*(\d{1,2})일?(?:\s*\([월화수목금토일]\))?\s*(?:(\d{1,2})시(?:\s*(\d{1,2})분)?|(\d{1,2}):(\d{2}))?\s*(?:까지)?\s*(?:(?:접수|신청|모집|지원|제출|최종)\s*마감|마감(?=[^가-힣a-zA-Z0-9]|$))/gi;
-
-  // 패턴 2: (접수|신청|모집|지원|제출|최종)? 마감:? (~|\b)? 날짜 (시각)?
-  // 예: "접수 마감: 11월 9일 18시", "신청 마감: 2026-11-09 23:59", "최종 마감: 11월 20일 18:00"
-  const patternAfter = /(?:접수|신청|모집|지원|제출|최종)?\s*마감\s*(?:일(?:시)?)?\s*[:：]\s*(?:~|\b)?\s*(?:(\d{4})[년./-]\s*)?(\d{1,2})[월./-]\s*(\d{1,2})일?(?:\s*\([월화수목금토일]\))?\s*(?:(\d{1,2})시(?:\s*(\d{1,2})분)?|(\d{1,2}):(\d{2}))?/gi;
-
-  // 보조 함수: 매칭 결과로부터 KST Date 객체 파싱
-  const parseMatchToDate = (matched: RegExpMatchArray): Date | null => {
-    const rawYear = matched[1];
-    const rawMonth = matched[2];
-    const rawDay = matched[3];
-    const rawHour = matched[4] ?? matched[6];
-    const rawMinute = matched[5] ?? matched[7];
-
-    const month = parseInt(rawMonth, 10);
-    const day = parseInt(rawDay, 10);
-    if (isNaN(month) || isNaN(day) || month < 1 || month > 12 || day < 1 || day > 31) {
-      return null;
-    }
-
-    let year: number;
-    if (rawYear) {
-      year = parseInt(rawYear, 10);
-      if (year < 2000 || year > 2100) return null;
-    } else if (postedAt) {
-      const parsedPosted = parseOpportunityTimestamp(postedAt);
-      if (parsedPosted) {
-        const postedDate = new Date(parsedPosted);
-        if (Number.isFinite(postedDate.getTime())) {
-          // Asia/Seoul 기준 연도 및 월 추출
-          const postedKst = new Date(postedDate.getTime() + 9 * 60 * 60 * 1000);
-          const postedYear = postedKst.getUTCFullYear();
-          const postedMonth = postedKst.getUTCMonth() + 1;
-          // 게시 시점이 연말(11~12월)이고 마감 월이 연초(1~2월)인 경우 다음 해로 처리
-          if (postedMonth >= 11 && month <= 2) {
-            year = postedYear + 1;
-          } else if (postedMonth <= 2 && month >= 11) {
-            // 게시 시점이 연초인데 마감 월이 연말이면 연도 추정이 모호하므로 null
-            return null;
-          } else if (Math.abs(month - postedMonth) > 6) {
-            // 게시월과 마감월 차이가 6개월 이상 벌어지면 연도 추정이 불확실하므로 null
-            return null;
-          } else {
-            year = postedYear;
-          }
-        } else {
-          return null;
-        }
-      } else {
+  for (const [field, isTitle] of [[title, true], [description, false]] as const) {
+    let hasApplicationLabel = false;
+    let hasUnqualifiedFinal = false;
+    for (const part of (field ?? '').split(/[\r\n,;]+/)) {
+      const clause = part.trim();
+      const application = applicationLabel.exec(clause);
+      const final = finalLabel.exec(clause);
+      if (uncertainSchedule.test(clause) && (deadlineContext.test(clause) || /연장|재개/.test(clause))) {
         return null;
       }
-    } else {
-      return null;
+      if (unrelatedSchedule.test(clause)) continue;
+      if (/^(?:UTC|KST|[A-Z]{2,5}\s*기준)\b/i.test(clause)) return null;
+
+      const shorthand = isTitle ? titleDeadline.exec(clause) : null;
+      const dateText = application?.[2] ?? final?.[1] ?? shorthand?.[1];
+      if (!dateText) {
+        // 지원 마감 안내가 있어도 형식이나 날짜를 해석할 수 없으면 다른 날짜에 의존하지 않는다.
+        if (/(?:최종|\d+\s*차|접수|신청|모집|지원)\s*마감/.test(clause)) return null;
+        continue;
+      }
+
+      const dateValue = dateText.replace(/\s*까지(?:\s*제출 바랍니다[.]?)?$/, '');
+      const date = parseDeadlineDate(dateValue, postedAt)
+        ?? (application || final
+          ? parseDeadlineDate(dateValue.replace(/\s*\)$/, ''), postedAt)
+          : null);
+      if (!date) return null;
+      if (application) hasApplicationLabel = true;
+      if (final) hasUnqualifiedFinal = true;
+
+      const stage = application?.[1];
+      if (final || stage === '최종') {
+        finalDeadlines.add(date.getTime());
+      } else if (stage) {
+        roundDeadlines.add(date.getTime());
+      } else {
+        deadlines.add(date.getTime());
+      }
     }
-
-    const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
-    const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-    if (day > daysInMonth[month - 1]) return null;
-
-    const hasHour = rawHour !== undefined && rawHour !== null;
-    const hour = hasHour ? parseInt(rawHour, 10) : 23;
-    const minute = rawMinute !== undefined && rawMinute !== null ? parseInt(rawMinute, 10) : (hasHour ? 0 : 59);
-    const second = hasHour ? 0 : 59;
-    const millisecond = hasHour ? 0 : 999;
-
-    if (isNaN(hour) || isNaN(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
-      return null;
-    }
-
-    // KST (UTC+9) Date 생성
-    const kstOffsetMs = 9 * 60 * 60 * 1000;
-    const localUtcMs = Date.UTC(year, month - 1, day, hour, minute, second, millisecond);
-    const deadlineMs = localUtcMs - kstOffsetMs;
-    const deadlineDate = new Date(deadlineMs);
-    return Number.isFinite(deadlineDate.getTime()) ? deadlineDate : null;
-  };
-
-  const parsedDates: Date[] = [];
-
-  for (const pattern of [patternBefore, patternAfter]) {
-    for (const match of text.matchAll(pattern)) {
-      const index = match.index ?? 0;
-      const preceding = text.slice(Math.max(0, index - 25), index);
-      if (periodPrefix.test(preceding)) continue;
-
-      // 해석할 수 없는 마감일이 있으면 다른 날짜만으로 마감 여부를 확정하지 않는다.
-      const parsed = parseMatchToDate(match);
-      if (!parsed) return null;
-      parsedDates.push(parsed);
-    }
+    if (hasUnqualifiedFinal && !hasApplicationLabel) return null;
   }
 
-  if (parsedDates.length === 0) return null;
-
-  // 복수의 마감일이 존재할 경우 가장 늦은 마감일을 채택하여 조기 마감 오판 방지
-  return parsedDates.reduce((latest, current) => (current.getTime() > latest.getTime() ? current : latest), parsedDates[0]);
+  if (finalDeadlines.size > 0) {
+    if (finalDeadlines.size !== 1) return null;
+    const [final] = finalDeadlines;
+    if ([...deadlines].some((deadline) => deadline !== final)) return null;
+    if ([...roundDeadlines].some((deadline) => deadline > final)) return null;
+    return new Date(final);
+  }
+  if (roundDeadlines.size > 0 || deadlines.size !== 1) return null;
+  const [deadline] = deadlines;
+  return new Date(deadline);
 }
 
 /**
