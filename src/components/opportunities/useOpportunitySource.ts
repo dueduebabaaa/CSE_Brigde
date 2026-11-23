@@ -3,7 +3,7 @@ import type { OpportunitySource } from './opportunityModel';
 import { fetchOpportunities } from '../../services/opportunityService';
 import { MyProfileContext } from '../../contexts/MyProfileContext';
 import { getRecommendedOpportunitiesForProfile } from '../../algorithms/profileRecommendations';
-import type { MatchResult, Opportunity } from '../../types';
+import type { Opportunity } from '../../types';
 
 const BOOKMARK_KEY = 'bridge_opportunity_demo_bookmarks_v1';
 function readBookmarks(): string[] {
@@ -56,10 +56,9 @@ export function useOpportunitySource(): OpportunitySource {
     return () => { active = false; };
   }, [canFetch, request]);
 
-  const matches = useMemo<MatchResult[]>(() => {
+  const matches = useMemo(() => {
     if (!source?.opportunities || !profile || profile.id !== userId || profileStatus !== 'ready') return [];
-    return getRecommendedOpportunitiesForProfile(profile, source.opportunities, { currentDate: source.now })
-      .filter((match) => match.evaluable);
+    return getRecommendedOpportunitiesForProfile(profile, source.opportunities, { currentDate: source.now });
   }, [source, profile, profileStatus, userId]);
 
   const toggle = async (id: string, next: boolean) => {

@@ -17,11 +17,12 @@ export function OpportunityExplorer({ opportunities, matches = [], loading, erro
   const suppliedMatches = recommendationMap(matches);
   const evaluations = evaluationMap(matches);
   const hasRecommendations = items.some((item) => suppliedMatches.has(item.id));
-  const filters = readFilters(params, hasRecommendations, hasRecommendations || profileStatus !== undefined);
+  const ready = opportunities !== undefined && !loading && !error;
+  const canSortByRecommendation = ready && (profileStatus === 'ready' || hasRecommendations);
+  const filters = readFilters(params, canSortByRecommendation, hasRecommendations || profileStatus !== undefined);
   const results = filterOpportunities(items, filters, matches, now);
   const list = params.get('view') === 'list';
   const tags = [...new Set(items.flatMap((item) => item.tags))].sort((a, b) => a.localeCompare(b, 'ko'));
-  const ready = opportunities !== undefined && !loading && !error;
   const change = (patch: Partial<ExploreFilters>) => {
     const next = { ...readFilters(params, true), ...patch };
     const query = new URLSearchParams();
@@ -97,7 +98,7 @@ export function OpportunityExplorer({ opportunities, matches = [], loading, erro
         <div className="flex flex-wrap items-center gap-2">
           <label className="sr-only" htmlFor="opportunity-sort">공고 정렬</label>
           <select id="opportunity-sort" value={filters.sort} onChange={(event) => change({ sort: event.target.value as ExploreFilters['sort'] })} className="min-h-11 rounded-lg border border-[#E2E8F0] bg-white px-2 text-xs text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#7D39EB]">
-            <option value="newest">최신순</option><option value="recommended" disabled={!hasRecommendations}>추천순</option>
+            <option value="newest">최신순</option><option value="recommended" disabled={!canSortByRecommendation}>추천순</option>
           </select>
           <div role="group" aria-label="보기 방식" className="flex rounded-lg border border-[#E2E8F0] bg-white">
             <button type="button" aria-label="카드형 보기" aria-pressed={!list} onClick={() => setView('card')} className={`flex h-11 w-11 items-center justify-center rounded-lg ${!list ? 'bg-[#F4EFFE] text-[#7D39EB]' : 'text-[#64748B]'}`}><LayoutGrid size={17} /></button>
@@ -105,6 +106,7 @@ export function OpportunityExplorer({ opportunities, matches = [], loading, erro
           </div>
         </div>
       </div>
+      {filters.sort === 'recommended' && !hasRecommendations && !filters.recommended && <p className="mb-3 text-xs text-[#64748B]">일치하는 추천 공고가 없어 공고를 최신순으로 표시해요.</p>}
       {!onBookmark && <p className="mb-3 text-xs text-[#64748B]">북마크는 저장 기능 연결 후 사용할 수 있어요.</p>}
       {loading ? <div role="status" aria-label="공고 불러오는 중"><LoadingState variant="skeleton" rows={3} /></div>
         : error ? <div role="alert" className="rounded-2xl border border-[#E2E8F0] bg-white p-6"><p className="text-sm">공고를 불러오지 못했어요.</p>{onRetry && <Button onClick={onRetry} className="mt-3 !min-h-11">다시 시도</Button>}</div>

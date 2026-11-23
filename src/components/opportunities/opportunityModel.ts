@@ -1,6 +1,6 @@
 import type { MatchResult, Opportunity, OpportunityCategory, Recruitment } from '../../types';
 import type { Snapshot } from '../../contexts/MyProfileContext';
-import { daysUntil } from '../dashboard/dashboardModel';
+import { daysUntil, isOpen } from '../dashboard/dashboardModel';
 
 export const CATEGORIES: OpportunityCategory[] = ['해커톤', '공모전', '경진대회', '대외활동', '서포터즈', '교육/특강'];
 export type DisplayStatus = 'open' | 'scheduled' | 'closed' | 'unknown';
@@ -11,9 +11,11 @@ export interface ExploreFilters {
   closing: boolean; recommended: boolean; sort: SortOrder;
 }
 export const DEFAULT_FILTERS: ExploreFilters = { search: '', category: '', tag: '', status: '', closing: false, recommended: false, sort: 'newest' };
+type OpportunityEvaluation = MatchResult & { evaluable?: boolean };
+
 export interface OpportunitySource {
   opportunities?: Opportunity[];
-  matches?: MatchResult[];
+  matches?: OpportunityEvaluation[];
   profileStatus?: Snapshot['status'];
   onProfileRetry?: () => void;
   recruitments?: Recruitment[];
@@ -34,14 +36,14 @@ export function opportunityStatus(item: Opportunity, now: Date): DisplayStatus {
   if (item.status === 'closed' || (item.deadline && Date.parse(item.deadline) < now.getTime())) return 'closed';
   if (item.status !== 'active') return 'unknown';
   if (item.applicationStart && Date.parse(item.applicationStart) > now.getTime()) return 'scheduled';
-  return 'open';
+  return isOpen(item, now) ? 'open' : 'unknown';
 }
 export function isClosing(item: Opportunity, now: Date): boolean {
   const days = daysUntil(item.deadline, now);
   return opportunityStatus(item, now) === 'open' && days !== null && days >= 0 && days <= 7;
 }
-export function evaluationMap(matches: MatchResult[] = []): Map<string, MatchResult> {
-  return new Map(matches.filter((match) => Number.isFinite(match.score) && match.score >= 0 && match.score <= 100)
+export function evaluationMap(matches: OpportunityEvaluation[] = []): Map<string, MatchResult> {
+  return new Map(matches.filter((match) => match.evaluable !== false && Number.isFinite(match.score) && match.score >= 0 && match.score <= 100)
     .map((match) => [match.targetId, {
       ...match,
       reasons: (match.reasons ?? []).filter((reason) => reason.trim()),
@@ -49,11 +51,11 @@ export function evaluationMap(matches: MatchResult[] = []): Map<string, MatchRes
     }]));
 }
 
-export function recommendationMap(matches: MatchResult[] = []): Map<string, MatchResult> {
+export function recommendationMap(matches: OpportunityEvaluation[] = []): Map<string, MatchResult> {
   return evaluationMap(matches.filter((match) => match.score > 0));
 }
 
-export function filterOpportunities(items: Opportunity[], filters: ExploreFilters, matches: MatchResult[], now: Date): Opportunity[] {
+export function filterOpportunities(items: Opportunity[], filters: ExploreFilters, matches: OpportunityEvaluation[], now: Date): Opportunity[] {
   const recommendations = recommendationMap(matches);
   const query = normalize(filters.search);
   return publicOpportunities(items, now).filter((item) => {
@@ -81,7 +83,7 @@ export function filterOpportunities(items: Opportunity[], filters: ExploreFilter
   });
 }
 
-export function readFilters(params: URLSearchParams, hasRecommendations: boolean, keepRecommendedFilter = hasRecommendations): ExploreFilters {
+export function readFilters(params: URLSearchParams, canSortByRecommendation: boolean, keepRecommendedFilter = canSortByRecommendation): ExploreFilters {
   const category = params.get('category') || '';
   const status = params.get('status') || '';
   const sort = params.get('sort');
@@ -89,7 +91,7 @@ export function readFilters(params: URLSearchParams, hasRecommendations: boolean
     search: params.get('search') || '', category: CATEGORIES.includes(category as OpportunityCategory) ? category : '',
     tag: params.get('tag') || '', status: Object.keys(STATUS_LABELS).includes(status) ? status : '',
     closing: false, recommended: keepRecommendedFilter && params.get('recommended') === '1',
-    sort: sort === 'recommended' && hasRecommendations ? sort : 'newest',
+    sort: sort === 'recommended' && canSortByRecommendation ? sort : 'newest',
   };
 }
 
