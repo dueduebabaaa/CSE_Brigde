@@ -5,14 +5,25 @@ import { MyProfileContext } from '../../contexts/MyProfileContext';
 import { getRecommendedOpportunitiesForProfile } from '../../algorithms/profileRecommendations';
 import type { Opportunity } from '../../types';
 
-const BOOKMARK_KEY = 'bridge_opportunity_demo_bookmarks_v1';
+
+const BOOKMARK_KEY = 'bridge_opportunity_bookmarks_v1';
+
 function readBookmarks(): string[] {
-  if (!import.meta.env.DEV) return [];
   try {
-    const values: unknown = JSON.parse(sessionStorage.getItem(BOOKMARK_KEY) || '[]');
-    return Array.isArray(values) ? values.filter((value): value is string => typeof value === 'string') : [];
-  } catch { return []; }
+    const values: unknown = JSON.parse(
+      localStorage.getItem(BOOKMARK_KEY) || '[]'
+    );
+
+    return Array.isArray(values)
+      ? values.filter(
+        (value): value is string => typeof value === 'string'
+      )
+      : [];
+  } catch {
+    return [];
+  }
 }
+
 
 export function useOpportunitySource(): OpportunitySource {
   const profileContext = useContext(MyProfileContext);
@@ -61,12 +72,16 @@ export function useOpportunitySource(): OpportunitySource {
     return getRecommendedOpportunitiesForProfile(profile, source.opportunities, { currentDate: source.now });
   }, [source, profile, profileStatus, userId]);
 
+
   const toggle = async (id: string, next: boolean) => {
-    if (!import.meta.env.DEV) throw new Error('Demo disabled');
-    const updated = next ? [...new Set([...bookmarkIds, id])] : bookmarkIds.filter((value) => value !== id);
-    sessionStorage.setItem(BOOKMARK_KEY, JSON.stringify(updated));
+    const updated = next
+      ? [...new Set([...bookmarkIds, id])]
+      : bookmarkIds.filter((value) => value !== id);
+
+    localStorage.setItem(BOOKMARK_KEY, JSON.stringify(updated));
     setBookmarkIds(updated);
   };
+
 
   return {
     opportunities: source?.opportunities,
@@ -79,7 +94,7 @@ export function useOpportunitySource(): OpportunitySource {
     demo: false,
     now: source?.now,
     bookmarkIds,
-    onBookmark: import.meta.env.DEV ? toggle : undefined,
+    onBookmark: toggle,
     onRetry: () => setAttempt((value) => value + 1),
   };
 }

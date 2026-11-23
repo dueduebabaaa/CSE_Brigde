@@ -54,7 +54,7 @@ export const BookmarksPage: React.FC = () => {
           관심 있는 공모전과 대외활동을 모아 확인하세요.
         </p>
         <p className="mt-1 text-xs text-[#94A3B8]">
-          현재 북마크는 개발 환경에서만 임시 저장됩니다.
+          북마크는 현재 사용 중인 브라우저에 저장되며, 다른 기기와 동기화되지 않습니다.
         </p>
       </div>
 
