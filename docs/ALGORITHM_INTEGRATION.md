@@ -17,7 +17,8 @@ B의 서버 권한 검사·snake_case→camelCase DTO 매핑 → C 입력 검증
 | validation.ts (inputSafety.ts에서 재수출) | isValidAvailabilityItem / filterValidAvailabilities | unknown → Availability 타입 가드 / Availability[] |
 | validation.ts | validateAndCleanTeamAvailabilities | unknown → Record<string, Availability[]> |
 | opportunityRecommendation.ts | recommendOpportunities | UserProfile, Opportunity[], Date=현재 시각 → OpportunityMatchResult[] |
-| memberMatching.ts | calculateMemberMatch | {desiredRoles:string[],requiredTechStacks:string[]}, Availability[], {profile:UserProfile,availability:Availability[]}[] → MemberMatchResult[] |
+| memberMatching.ts | calculateMemberMatch | 역할·기술 요구 조건, Availability[], 후보별 `{ profile: Pick<UserProfile, 'id' \| 'visibility' \| 'isPublic' \| 'desiredRoles' \| 'techStacks'>, availability: Availability[] }` 배열 → MemberMatchResult[] |
+| publicMemberRecommendations.ts | recommendPublicMembers | 본인 ID, 역할·기술 요구 조건, 공개 프로필 후보 → PublicMemberRecommendations |
 | teamAnalyzer.ts | analyzeTeamBalanceForRoles / analyzeTeamBalance | UserProfile[], UserProfile[], string[] / 역할 생략 → TeamBalanceAnalysisResult |
 | scheduleOptimizer.ts | calculateOptimalMeetingSlots / slotToTimeString | Record<string,Availability[]>, number=60 → RecommendedSlot[] / number, boolean=false → string |
 | opportunityTagExtractor.ts | extractTagsFromOpportunity | title?:string\|null, description?:string\|null → ExtractedOpportunityTags |
@@ -29,6 +30,8 @@ B의 서버 권한 검사·snake_case→camelCase DTO 매핑 → C 입력 검증
 전체 결과 타입의 필드와 보조 함수는 기존 가이드에 둔다. 공통 타입은 `src/types/index.ts`, `AlgorithmUserProfile`은 `validation.ts`, `ProfileVisibility`는 `inputSafety.ts`에서 import한다.
 
 ## 화면 연결용 호출 예시
+
+팀원 탐색에서 공개 프로필 후보를 전달하는 경로는 [공개 프로필 팀원 추천 계약](./ALGORITHM_INTEGRATION_GUIDE.md#공개-프로필-팀원-추천)을 참조한다. `recommendPublicMembers(myUserId, requirements, publicProfiles)`의 `status`로 빈 상태를 구분하고 `matches[].targetId`로 전달한 공개 후보와 연결한다. 결과는 전달한 후보 범위에 한정된다. PR #17에는 실제 Supabase 조회나 팀원 탐색 UI 호출이 포함되지 않았다.
 
 아래는 `src/pages` 기준 import이며 실제 화면 파일을 수정한 것은 아니다. B가 권한을 검사한 프로필·공고·후보·시간표를 인수로 공급한다. 같은 기준 시각을 한 번 정해 전달하고 검증 오류와 빈 추천 결과를 UI에서 구분한다.
 

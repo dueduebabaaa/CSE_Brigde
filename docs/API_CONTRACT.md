@@ -78,7 +78,7 @@ export interface MemberMatchResult {
   roleMatch: boolean;
   matchedTechStacks: string[];
   commonAvailableHoursWeekly: number; // 주간 공통 가능 시간 (시간 단위)
-  reasons: string[]; // 예: ["필요 역할 Frontend 완벽 일치", "화요일 저녁 2시간 공통 회의 가능"]
+  reasons: string[]; // 예: ["매주 2시간의 공통 활동 가능 시간이 있습니다."]
 }
 
 export function calculateMemberMatch(
@@ -88,11 +88,13 @@ export function calculateMemberMatch(
   },
   myAvailability: Availability[],
   candidates: {
-    profile: UserProfile;
+    profile: Pick<UserProfile, 'id' | 'visibility' | 'isPublic' | 'desiredRoles' | 'techStacks'>;
     availability: Availability[];
   }[]
 ): MemberMatchResult[];
 ```
+
+위 `UserProfile`은 알고리즘 공통 타입이다. 공개 프로필에서 팀원 탐색용 결과를 만드는 별도 함수의 입력과 반환값은 [공개 프로필 팀원 추천 계약](./ALGORITHM_INTEGRATION_GUIDE.md#공개-프로필-팀원-추천)을 참조한다.
 
 ### 3-3. 팀 빌더 역량 균형도 분석 함수 (`src/algorithms/teamAnalyzer.ts`)
 ```typescript
@@ -199,9 +201,9 @@ export function calculateOptimalMeetingSlots(
    export function normalizeTag(tag: string): string;
    // 예: "react.js" -> "React", "pytorch" -> "PyTorch", "ai/ml" -> "AI/ML"
    ```
-2. **보유 기술 없음 유저의 매칭 점수 산출 규칙**:
-   - `techStacks`가 비어있거나 `['아직 보유 기술 없음']`인 경우:
-     - 기술 스택 점수는 0점으로 처리하되, **희망 역할(`desiredRoles`)**과 **관심 분야(`interests`)**, **공통 활동 가능 시간(`Availability`)**에 비례하여 추천 적합도를 산출하도록 C 담당자와 상호 협의.
+2. **팀원 매칭의 보유 기술 평가**:
+   - 요구 기술이 없으면 기술 가중치를 제외한다. 요구 기술이 있고 후보의 보유 기술이 비어 있으면 기술 점수는 0이다. 공개 프로필 연결에서는 비교할 역할 정보도 없으면 해당 후보의 점수를 반환하지 않는다.
+   - 기본 가중치는 희망 역할 45%, 보유 기술 30%, 주간 공통 활동 가능 시간 25%다. 관심 분야는 점수에 반영하지 않는다.
 
 ---
 
