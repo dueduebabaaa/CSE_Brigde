@@ -115,9 +115,13 @@ describe('실제 데이터 형식의 공고 추천 라우트', () => {
     expect(screen.getByRole('button', { name: /모집 중인 공고/ }).textContent).toContain('0');
     expect(screen.getByRole('option', { name: '추천순' })).toHaveProperty('disabled', false);
     const card = screen.getByRole('article');
-    expect(card.querySelector('svg[viewBox="0 0 150 85"]')).toBeNull();
+    const graphic = card.querySelector('svg[viewBox="0 0 150 85"]');
+    expect(graphic?.querySelector('path')?.getAttribute('d')).toBe('M10 42H140');
+    expect(graphic?.parentElement?.style.backgroundColor).toBe('rgb(125, 57, 235)');
     fireEvent.click(screen.getByRole('button', { name: '목록형 보기' }));
-    expect(screen.getByRole('article').querySelector('svg[viewBox="0 0 150 85"]')).toBeNull();
+    const listGraphic = screen.getByRole('article').querySelector('svg[viewBox="0 0 150 85"]');
+    expect(listGraphic?.innerHTML).toBe(graphic?.innerHTML);
+    expect(listGraphic?.parentElement?.style.backgroundColor).toBe('rgb(125, 57, 235)');
 
     fireEvent.click(within(screen.getByRole('article')).getByRole('link', { name: '상세 보기' }));
     expect(within(screen.getByRole('region', { name: '추천 이유' })).getByText('추천 적합도 100%')).toBeTruthy();
