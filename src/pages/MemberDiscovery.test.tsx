@@ -97,6 +97,67 @@ describe('팀원 탐색과 공개 프로필 상세', () => {
     }));
   });
 
+  it('공개 후보를 실제 매칭 순서로 표시하고 0점, 부분 평가, 평가 불가를 구분한다', async () => {
+    const source = buildSource();
+    const mismatch = { ...fullProfile, id: 'mismatch', name: '불일치 후보', nickname: '', desired_roles: ['Backend'], tech_stacks: ['Python'] };
+    const partial = { ...sparseProfile, id: 'partial', name: '부분 평가 후보', tech_stacks: ['React'] };
+    const extraFields = { ...fullProfile, email: 'private@example.invalid' };
+    source.searchPublicProfiles.mockResolvedValue(pageOf([
+      sparseProfile, mismatch, partial, extraFields, fullProfile, privateProfile,
+      { ...sparseProfile, id: 'viewer', name: '로그인한 본인' },
+      { ...sparseProfile, id: 'team', name: '팀 전용 후보', visibility: 'team_only' },
+    ]));
+    renderRoutes('/members', source);
+    await screen.findByRole('link', { name: '브리지' });
+    expect(screen.queryByLabelText('팀원 매칭 결과')).toBeNull();
+
+    fireEvent.change(screen.getByLabelText('찾는 역할'), { target: { value: '프론트엔드' } });
+    fireEvent.change(screen.getByLabelText('필요 기술'), { target: { value: 'React' } });
+    fireEvent.click(screen.getByRole('button', { name: '추천 조건 적용' }));
+
+    expect(screen.getByText('현재 검색 결과 내 추천순')).toBeTruthy();
+    expect(screen.getByText('현재 페이지의 공개 프로필 최대 12명을 비교합니다.')).toBeTruthy();
+    const cards = screen.getAllByRole('article');
+    expect(cards.map((card) => within(card).getByRole('link').textContent)).toEqual(['브리지', '부분 평가 후보', '불일치 후보', '이학생']);
+    const [match, partialMatch, zeroMatch, noMatch] = cards.map((card) => within(within(card).getByRole('region', { name: '팀원 매칭 결과' })));
+    expect(match.getByText('매칭 점수 100점')).toBeTruthy();
+    expect(match.getByText('일치 기술 · React')).toBeTruthy();
+    expect(match.getByText(/모집 중인 .*일치합니다/)).toBeTruthy();
+    expect(match.getByText(/요구 기술 1개 중 React/)).toBeTruthy();
+    expect(partialMatch.getByText('매칭 점수 40점')).toBeTruthy();
+    expect(partialMatch.getByText(/부분 평가/)).toBeTruthy();
+    expect(zeroMatch.getByText('매칭 점수 0점')).toBeTruthy();
+    expect(zeroMatch.getByText(/일치하는 항목이 없어요/)).toBeTruthy();
+    expect(noMatch.getByText(/평가 불가/)).toBeTruthy();
+    expect(noMatch.queryByText(/매칭 점수/)).toBeNull();
+    expect(screen.getByText(/주간 시간표가 제공되지 않아/)).toBeTruthy();
+    expect(screen.queryByText(/활동 가능 시간 확인이 필요합니다|private@example\.invalid/)).toBeNull();
+    expect(source.searchPublicProfiles).toHaveBeenCalledTimes(1);
+  });
+
+  it('추천 조건을 다음 페이지에 적용하고 지우면 해당 페이지의 기본 목록으로 돌아간다', async () => {
+    const source = buildSource();
+    const secondPageCandidate = { ...sparseProfile, id: 'page-two', name: '두 번째 페이지 후보', tech_stacks: ['React'] };
+    source.searchPublicProfiles.mockImplementation(async ({ page }) => pageOf(page === 1 ? [fullProfile] : [secondPageCandidate], page, 2));
+    renderRoutes('/members', source);
+    await screen.findByRole('link', { name: '브리지' });
+    fireEvent.change(screen.getByLabelText('필요 기술'), { target: { value: 'React' } });
+    fireEvent.click(screen.getByRole('button', { name: '추천 조건 적용' }));
+    expect(screen.getByText('매칭 점수 100점')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: '다음' }));
+    await screen.findByRole('link', { name: '두 번째 페이지 후보' });
+    expect(screen.queryByRole('link', { name: '브리지' })).toBeNull();
+    expect(screen.getByText('매칭 점수 100점')).toBeTruthy();
+    expect(source.searchPublicProfiles).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2, pageSize: 12 }));
+
+    fireEvent.change(screen.getByLabelText('필요 기술'), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: '추천 조건 적용' }));
+    expect(screen.queryByText('매칭 점수 100점')).toBeNull();
+    expect(screen.getByRole('link', { name: '두 번째 페이지 후보' })).toBeTruthy();
+    expect(source.searchPublicProfiles).toHaveBeenCalledTimes(2);
+  });
+
   it('상세 링크로 이동해 실제 ID와 공개 필드를 사용한다', async () => {
     const source = buildSource();
     source.searchPublicProfiles.mockResolvedValue(pageOf([fullProfile]));
