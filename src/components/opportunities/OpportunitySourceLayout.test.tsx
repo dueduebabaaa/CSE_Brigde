@@ -216,4 +216,109 @@ describe('실제 데이터 형식의 공고 추천 라우트', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: '추천 공고만 보기' }));
     expect(screen.getByText('검색 결과 3개')).toBeTruthy();
   });
+
+  it('존재하지 않는 마감일이 있는 공고의 추천을 홈·탐색·상세에서 유지한다', async () => {
+    const notice = {
+      ...rows[2],
+      id: 'opp-invalid-deadline',
+      title: '리액트 특강 (접수 마감: 2020-02-30 18:00)',
+      posted_at: '2020-02-01T00:00:00Z',
+      deadline: null,
+      tags: ['React'],
+    };
+    mocks.opportunityRows.mockResolvedValue({ data: [notice], error: null });
+
+    render(<TestRoutes initialEntry="/" />);
+    const home = await screen.findByRole('region', { name: '나에게 맞는 공모전' });
+    expect(await within(home).findByText(notice.title)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('link', { name: '탐색으로 이동' }));
+    const [card] = await screen.findAllByRole('article');
+    expect(within(card).getAllByText(notice.title).length).toBeGreaterThan(0);
+    expect(within(card).getAllByText(/추천 적합도/).length).toBeGreaterThan(0);
+
+    fireEvent.click(within(card).getByRole('link', { name: '상세 보기' }));
+    const reasons = await screen.findByRole('region', { name: '추천 이유' });
+    expect(within(reasons).getByText(/추천 적합도/)).toBeTruthy();
+  });
+
+  it('useOpportunitySource의 filterExplicitTextDeadline이 활성화되어 지난 마감 공고는 추천에서 제외되고 일반 공고로는 유지된다', async () => {
+    // 1. 과거 마감일이 명시된 공고: React 태그 매칭이지만 제목에 과거 마감일 있음
+    const expiredByText = {
+      ...rows[2],
+      id: 'opp-past-text',
+      title: '리액트 부트캠프 (~2020년 1월 2일 18시 마감)',
+      posted_at: '2020-01-01T00:00:00Z',
+      deadline: null,
+      tags: ['React'],
+    };
+    // 2. 미래 마감일이 명시된 공고: React 태그 매칭, 미래 마감일 있음
+    const futureByText = {
+      ...rows[2],
+      id: 'opp-future-text',
+      title: '리액트 해커톤 (~2099년 12월 31일 18시 마감)',
+      posted_at: '2020-01-01T00:00:00Z',
+      deadline: null,
+      tags: ['React'],
+    };
+    // 3. 단순 교육 기간이 있는 공고: React 태그 매칭, 교육 기간 표기만 있음
+    const periodOnly = {
+      ...rows[2],
+      id: 'opp-period-text',
+      title: '리액트 워크숍 (교육 기간: 2020.01.10 ~ 01.12)',
+      posted_at: '2020-01-01T00:00:00Z',
+      deadline: null,
+      tags: ['React'],
+    };
+    // 4. 모호한 마감 표현 공고: React 태그 매칭, 선착순 마감
+    const ambiguousNotice = {
+      ...rows[2],
+      id: 'opp-ambiguous-text',
+      title: '리액트 스터디 (선착순 마감)',
+      posted_at: '2020-01-01T00:00:00Z',
+      deadline: null,
+      tags: ['React'],
+    };
+
+    mocks.opportunityRows.mockResolvedValue({
+      data: [expiredByText, futureByText, periodOnly, ambiguousNotice],
+      error: null,
+    });
+
+    // 1) 홈 화면 검증: 미래 마감, 교육 기간, 모호한 표현 3건만 추천되고, 지난 마감 공고는 추천에서 제외
+    render(<TestRoutes initialEntry="/" />);
+    const home = await screen.findByRole('region', { name: '나에게 맞는 공모전' });
+    // 전체 공고는 4개
+    expect(screen.getByRole('link', { name: '공개 공고: 4' })).toBeTruthy();
+    // 추천 공고는 지난 마감(1개)을 제외한 3개
+    expect(screen.getByRole('link', { name: '추천 공고: 3' })).toBeTruthy();
+    // 홈 추천 카드에 지난 마감 공고 제목은 없음
+    expect(within(home).queryByText(expiredByText.title)).toBeNull();
+    // 미래 마감 공고는 홈 추천 카드에 포함
+    expect(within(home).getByText(futureByText.title)).toBeTruthy();
+
+    // 2) 탐색 화면 검증: 전체 목록에는 4건 모두 노출되나, 추천 점수는 지난 공고에만 미제공
+    fireEvent.click(screen.getByRole('link', { name: '탐색으로 이동' }));
+    await screen.findByText('검색 결과 4개');
+    const cards = screen.getAllByRole('article');
+    const expiredCard = cards.find(card => card.textContent?.includes(expiredByText.title))!;
+    const futureCard = cards.find(card => card.textContent?.includes(futureByText.title))!;
+    // 지난 마감 공고는 추천 점수 없음
+    expect(within(expiredCard).queryByText(/추천 적합도/)).toBeNull();
+    // 미래 마감 공고는 추천 점수 있음
+    expect(within(futureCard).getAllByText(/추천 적합도/).length).toBeGreaterThan(0);
+
+    // 추천 필터 적용 시 3건만 노출
+    fireEvent.click(screen.getByRole('checkbox', { name: '추천 공고만 보기' }));
+    expect(screen.getByText('검색 결과 3개')).toBeTruthy();
+    expect(screen.queryByText(expiredByText.title)).toBeNull();
+
+    // 3) 상세 화면 검증: 지난 공고 상세 진입 시 공고 자체는 표시되나 추천 이유는 미제공
+    fireEvent.click(screen.getByRole('checkbox', { name: '추천 공고만 보기' })); // 필터 해제
+    const cardsAfterReset = screen.getAllByRole('article');
+    const expiredCardAfter = cardsAfterReset.find(card => card.textContent?.includes(expiredByText.title))!;
+    fireEvent.click(within(expiredCardAfter).getByRole('link', { name: '상세 보기' }));
+    expect(await screen.findByText(expiredByText.title)).toBeTruthy();
+    expect(within(screen.getByRole('region', { name: '추천 이유' })).queryByText(/추천 적합도/)).toBeNull();
+  });
 });

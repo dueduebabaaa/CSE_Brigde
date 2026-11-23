@@ -3,7 +3,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { recommendOpportunities } from '../algorithms/opportunityRecommendation';
+import {
+  recommendOpportunities,
+  extractExplicitDeadline,
+  isExplicitlyExpiredInText,
+  filterOpportunitiesByExplicitDeadline,
+} from '../algorithms/opportunityRecommendation';
 import { UserProfile, Opportunity } from '../types';
 import { mockUsers, mockOpportunities } from '../data/mockData';
 
@@ -591,6 +596,321 @@ describe('공모전 맞춤 추천 알고리즘 (recommendOpportunities)', () => 
     it('공모전 목록이 빈 배열일 경우 빈 배열을 안전하게 반환해야 한다', () => {
       const results = recommendOpportunities(mockUsers[0], [], referenceDate);
       expect(results).toEqual([]);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 8. 최신 합의 정책 및 명시적 마감일 안전 처리 검증 (DATA_CONTRACT 8.3절)
+  // ---------------------------------------------------------------------------
+  describe('8. 최신 합의 정책 및 명시적 마감일 안전 처리 검증', () => {
+    const student: UserProfile = {
+      ...mockUsers[0],
+      interests: ['웹 개발'],
+      techStacks: ['React'],
+      wantedTechStacks: ['TypeScript'],
+    };
+
+    it('needs_confirmation 공고도 정상적으로 게시된 경우 추천 후보에 포함되어야 한다', () => {
+      const oppNeedsConfirm: Opportunity = {
+        ...mockOpportunities[0],
+        id: 'opp-needs-confirm-test',
+        status: 'needs_confirmation',
+        deadline: null,
+        tags: ['웹 개발', 'React'],
+      };
+
+      const results = recommendOpportunities(student, [oppNeedsConfirm], referenceDate);
+      expect(results).toHaveLength(1);
+      expect(results[0].opportunityId).toBe('opp-needs-confirm-test');
+      expect(results[0].score).toBeGreaterThan(0);
+      expect(results[0].evaluable).toBe(true);
+    });
+
+    it('deadline이 null인 공고는 마감일이 명시된 동일 공고와 비교하여 감점이 없어야 한다', () => {
+      const oppWithDeadline: Opportunity = {
+        ...mockOpportunities[0],
+        id: 'opp-with-deadline',
+        status: 'active',
+        deadline: '2026-11-30T18:00:00+09:00',
+        tags: ['웹 개발', 'React'],
+      };
+      const oppNullDeadline: Opportunity = {
+        ...mockOpportunities[0],
+        id: 'opp-null-deadline-compare',
+        status: 'active',
+        deadline: null,
+        tags: ['웹 개발', 'React'],
+      };
+
+      const resWith = recommendOpportunities(student, [oppWithDeadline], referenceDate);
+      const resNull = recommendOpportunities(student, [oppNullDeadline], referenceDate);
+
+      expect(resWith).toHaveLength(1);
+      expect(resNull).toHaveLength(1);
+      expect(resNull[0].score).toBe(resWith[0].score);
+    });
+
+    it('평가 불가(evaluable: false)와 실제 0점(evaluable: true, score: 0)을 명확하게 구분해야 한다', () => {
+      // 1) 평가 불가: 학생 관심/기술 데이터가 전혀 없는 경우
+      const emptyStudent: UserProfile = {
+        ...mockUsers[0],
+        interests: [],
+        techStacks: [],
+        wantedTechStacks: [],
+      };
+      const activeOpp: Opportunity = {
+        ...mockOpportunities[0],
+        id: 'opp-active-eval',
+        status: 'active',
+        tags: ['웹 개발', 'React'],
+      };
+      const notEvaluable = recommendOpportunities(emptyStudent, [activeOpp], referenceDate);
+      expect(notEvaluable).toHaveLength(1);
+      expect(notEvaluable[0].evaluable).toBe(false);
+      expect(notEvaluable[0].score).toBe(0);
+      expect(notEvaluable[0].reasons[0]).toContain('평가에 필요한 데이터');
+
+      // 2) 실제 0점: 학생과 공고 모두 태그가 있으나 일치하는 항목이 전혀 없는 경우
+      const studentSecurity: UserProfile = {
+        ...mockUsers[0],
+        interests: ['보안'],
+        techStacks: ['C++'],
+        wantedTechStacks: ['Rust'],
+      };
+      const zeroScore = recommendOpportunities(studentSecurity, [activeOpp], referenceDate);
+      expect(zeroScore).toHaveLength(1);
+      expect(zeroScore[0].evaluable).toBe(true);
+      expect(zeroScore[0].score).toBe(0);
+      expect(zeroScore[0].matchedTags).toEqual([]);
+    });
+
+    describe('명시적 텍스트 마감일 추출 및 안전 필터링', () => {
+      it('제목/본문에서 한국어 마감일 표기를 정확하게 파싱하여 KST 기준 Date를 반환해야 한다', () => {
+        // 1) B의 실제 수집 공고 제목 표본 (~11월 9일 13시 마감)
+        const date1 = extractExplicitDeadline(
+          '[AI부트캠프사업단] 2026 네이버 클라우드∙아마존 웹서비스 동계 몰입형 교육 안내(~11월 9일 13시 마감)',
+          '',
+          '2026-11-05T15:00:00+00:00' // KST 2026-11-06
+        );
+        expect(date1).not.toBeNull();
+        expect(date1!.toISOString()).toBe('2026-11-09T04:00:00.000Z'); // KST 13:00 = UTC 04:00
+
+        // 2) 연도 명시 및 시/분 콜론 표기 (신청 마감: 2026-11-20 18:00)
+        const date2 = extractExplicitDeadline(
+          '공모전 참가 접수',
+          '접수 마감: 2026-11-20 18:00까지 제출 바랍니다.'
+        );
+        expect(date2).not.toBeNull();
+        expect(date2!.toISOString()).toBe('2026-11-20T09:00:00.000Z'); // KST 18:00 = UTC 09:00
+
+        // 3) 시간 생략 시 당일 23:59:59.999 KST로 설정되어 조기 마감 오판 방지
+        const date3 = extractExplicitDeadline(
+          '2026 아이디어톤 (~11월 15일 마감)',
+          '',
+          '2026-11-01T00:00:00+09:00'
+        );
+        expect(date3).not.toBeNull();
+        expect(date3!.toISOString()).toBe('2026-11-15T14:59:59.999Z');
+      });
+
+      it('행사일시, 교육 기간 등 비마감 일정은 마감일로 오판하지 않아야 한다', () => {
+        // 교육 기간 안내
+        expect(extractExplicitDeadline('2026 동계 특강 (교육 기간: 11월 10일 ~ 11월 12일)')).toBeNull();
+        // 교육 기간 마감 표기 (비마감 행사 기간)
+        expect(extractExplicitDeadline('2026 동계 특강 (교육 기간: ~11월 12일 마감)')).toBeNull();
+        // 행사 일시 안내
+        expect(extractExplicitDeadline('2026 SW인의 밤 (행사일: 2026년 11월 20일)')).toBeNull();
+        // 기준일 안내
+        expect(extractExplicitDeadline('[안내] 현장실습 대체 기준 변경 안내(26.11.10. 기준)')).toBeNull();
+      });
+
+      it.each([
+        '2026-02-30 18:00',
+        '2026-02-29',
+        '2026-04-31',
+        '2026-13-01',
+        '2026-00-10',
+        '2026-11-10 25:00',
+        '2026-11-10 18:60',
+      ])('유효하지 않은 마감일 %s을 거부한다', (deadline) => {
+        expect(extractExplicitDeadline(`접수 마감: ${deadline}`)).toBeNull();
+      });
+
+      it('윤년 마감일을 KST 기준으로 해석하고 마감 시각이 지난 후에만 제외한다', () => {
+        const title = '접수 마감: 2024-02-29 18:00';
+        const deadline = new Date('2024-02-29T09:00:00.000Z');
+        const opportunity = { ...mockOpportunities[0], title, deadline: null };
+        expect(extractExplicitDeadline(title)).toEqual(deadline);
+        expect(isExplicitlyExpiredInText(opportunity, deadline)).toBe(false);
+        expect(isExplicitlyExpiredInText(opportunity, new Date(deadline.getTime() + 1))).toBe(true);
+      });
+
+      it.each([
+        '접수 마감: 2026-02-30 18:00',
+        '1차 접수 마감: 2026-02-20 18:00, 최종 마감: 2026-02-30 18:00',
+      ])('잘못된 마감일이 있는 공고를 추천 후보에 유지한다 (%s)', (title) => {
+        const opportunity: Opportunity = {
+          ...mockOpportunities[0],
+          title,
+          status: 'needs_confirmation',
+          postedAt: '2026-02-01T00:00:00+09:00',
+          deadline: null,
+        };
+        const now = new Date('2026-03-03T00:00:00+09:00');
+        const options = { filterExplicitTextDeadline: true };
+        expect(extractExplicitDeadline(title)).toBeNull();
+        expect(recommendOpportunities(student, [opportunity], now, options)).toHaveLength(1);
+        const dbDeadline = { ...opportunity, deadline: '2026-02-20T18:00:00+09:00' };
+        expect(recommendOpportunities(student, [dbDeadline], now, options)).toEqual([]);
+      });
+
+      it('복수의 마감일(예: 1차 마감, 최종 마감)이 기재된 경우 최종 마감일을 채택하여 조기 제외를 방지해야 한다', () => {
+        const testNow = new Date('2026-11-17T12:00:00+09:00');
+        // 1차 마감은 11월 5일(과거), 최종 마감은 11월 25일(미래)
+        const date = extractExplicitDeadline(
+          '2026 대학생 SW 창업경진대회 (1차 접수 마감: 11월 5일 18시, 최종 마감: 11월 25일 18:00)',
+          '',
+          '2026-11-01T00:00:00+09:00'
+        );
+        expect(date).not.toBeNull();
+        expect(date!.toISOString()).toBe('2026-11-25T09:00:00.000Z');
+
+        // 과거 1차 마감으로 인해 조기 제외되지 않고 후보로 유지되는지 검증
+        const opp: Opportunity = {
+          ...mockOpportunities[0],
+          id: 'opp-multi-deadlines',
+          title: '2026 대학생 SW 창업경진대회 (1차 접수 마감: 11월 5일 18시, 최종 마감: 11월 25일 18:00)',
+          postedAt: '2026-11-01T00:00:00+09:00',
+          deadline: null,
+        };
+        expect(isExplicitlyExpiredInText(opp, testNow)).toBe(false);
+      });
+
+      it('연도 추정이 불확실하거나 6개월 이상 벌어지는 경우 임의로 추정하지 않고 null을 반환해야 한다', () => {
+        // 1) 연도 없고 postedAt도 없는 경우
+        expect(extractExplicitDeadline('해커톤 접수 마감: 11월 9일 18시', '', null)).toBeNull();
+
+        // 2) 게시일(1월)과 마감월(11월) 차이가 6개월 이상인 경우
+        expect(extractExplicitDeadline('해커톤 접수 마감: 11월 9일 18시', '', '2026-01-10T00:00:00+09:00')).toBeNull();
+
+        // 3) 비정상적인 연도 표기 (2000년 미만 또는 2100년 초과)
+        expect(extractExplicitDeadline('해커톤 (~1995년 11월 9일 마감)')).toBeNull();
+      });
+
+      it('모호하거나 불확실한 자연어 표현은 마감으로 오판하지 않고 null을 반환해야 한다', () => {
+        expect(extractExplicitDeadline('해커톤 참가팀 모집 (선착순 마감)')).toBeNull();
+        expect(extractExplicitDeadline('스타트업 인턴십 상시 모집')).toBeNull();
+        expect(extractExplicitDeadline('동아리 신입 부원 모집 (마감일: 추후 공지)')).toBeNull();
+        expect(extractExplicitDeadline('인원 충원 시 마감됩니다.')).toBeNull();
+      });
+
+      it('isExplicitlyExpiredInText는 지난 마감일에만 true를 반환하고 미래/모호/미정에는 false를 반환해야 한다', () => {
+        const testNow = new Date('2026-11-17T12:00:00+09:00');
+
+        // 1) 지난 마감일 (~11월 9일 13시 마감) -> true
+        const expiredOpp: Opportunity = {
+          ...mockOpportunities[0],
+          id: 'opp-past-deadline',
+          title: '네이버 클라우드 몰입형 교육 (~11월 9일 13시 마감)',
+          postedAt: '2026-11-05T15:00:00+00:00',
+          deadline: null,
+        };
+        expect(isExplicitlyExpiredInText(expiredOpp, testNow)).toBe(true);
+
+        // 2) 미래 마감일 (~11월 25일 18시 마감) -> false
+        const futureOpp: Opportunity = {
+          ...mockOpportunities[0],
+          id: 'opp-future-deadline',
+          title: '동계 해커톤 (~11월 25일 18시 마감)',
+          postedAt: '2026-11-05T15:00:00+00:00',
+          deadline: null,
+        };
+        expect(isExplicitlyExpiredInText(futureOpp, testNow)).toBe(false);
+
+        // 3) 모호한 표현 (선착순 마감) -> false
+        const ambiguousOpp: Opportunity = {
+          ...mockOpportunities[0],
+          id: 'opp-ambiguous',
+          title: '선착순 마감 프로젝트',
+          postedAt: '2026-11-05T15:00:00+00:00',
+          deadline: null,
+        };
+        expect(isExplicitlyExpiredInText(ambiguousOpp, testNow)).toBe(false);
+
+        // 4) 이미 DB deadline이 존재하는 공고 -> false (DB deadline 로직에 위임)
+        const dbDeadlineOpp: Opportunity = {
+          ...mockOpportunities[0],
+          deadline: '2026-11-20T18:00:00+09:00',
+        };
+        expect(isExplicitlyExpiredInText(dbDeadlineOpp, testNow)).toBe(false);
+      });
+
+      it('filterOpportunitiesByExplicitDeadline은 명백히 지난 공고만 순수 함수로 필터링해야 한다', () => {
+        const testNow = new Date('2026-11-17T12:00:00+09:00');
+        const list: Opportunity[] = [
+          {
+            ...mockOpportunities[0],
+            id: 'opp-1',
+            title: '지난 공고 (~11월 9일 13시 마감)',
+            postedAt: '2026-11-05T15:00:00+00:00',
+            deadline: null,
+          },
+          {
+            ...mockOpportunities[0],
+            id: 'opp-2',
+            title: '진행중 공고 (~11월 25일 18시 마감)',
+            postedAt: '2026-11-05T15:00:00+00:00',
+            deadline: null,
+          },
+          {
+            ...mockOpportunities[0],
+            id: 'opp-3',
+            title: '교육 안내 (교육 기간: 11월 10일 ~ 12일)',
+            postedAt: '2026-11-05T15:00:00+00:00',
+            deadline: null,
+          },
+        ];
+
+        const filtered = filterOpportunitiesByExplicitDeadline(list, testNow);
+        expect(filtered).toHaveLength(2);
+        expect(filtered.map((o) => o.id)).toEqual(['opp-2', 'opp-3']);
+      });
+
+      it('recommendOpportunities에서 filterExplicitTextDeadline=true 옵션을 활성화하면 텍스트 마감 경과 공고가 제외되어야 한다', () => {
+        const testNow = new Date('2026-11-17T12:00:00+09:00');
+        const expiredOpp: Opportunity = {
+          ...mockOpportunities[0],
+          id: 'opp-expired-in-title',
+          title: '네이버 클라우드 교육 (~11월 9일 13시 마감)',
+          status: 'needs_confirmation',
+          postedAt: '2026-11-05T15:00:00+00:00',
+          deadline: null,
+          tags: ['웹 개발', 'React'],
+        };
+        const futureOpp: Opportunity = {
+          ...mockOpportunities[0],
+          id: 'opp-future-in-title',
+          title: '웹 개발 해커톤 (~11월 25일 18시 마감)',
+          status: 'needs_confirmation',
+          postedAt: '2026-11-05T15:00:00+00:00',
+          deadline: null,
+          tags: ['웹 개발', 'React'],
+        };
+
+        // 기본값: filterExplicitTextDeadline이 false이므로 둘 다 후보 포함
+        const resDefault = recommendOpportunities(student, [expiredOpp, futureOpp], testNow);
+        expect(resDefault).toHaveLength(2);
+
+        // 옵션 활성화: 지난 마감일 공고만 안전하게 제외
+        const resFiltered = recommendOpportunities(
+          student,
+          [expiredOpp, futureOpp],
+          testNow,
+          { filterExplicitTextDeadline: true }
+        );
+        expect(resFiltered).toHaveLength(1);
+        expect(resFiltered[0].opportunityId).toBe('opp-future-in-title');
+      });
     });
   });
 });
