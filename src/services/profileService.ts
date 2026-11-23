@@ -36,6 +36,59 @@ export interface UserProfile {
   updated_at: string;
 }
 
+/**
+ * Public response allowlist. Keep this explicit so adding a field to UserProfile
+ * never makes that field public by default. Privacy-sensitive allowlisted fields
+ * are documented in docs/PROFILE_SECURITY.md and still require product policy.
+ */
+export type PublicProfile = Pick<UserProfile,
+  | 'id'
+  | 'name'
+  | 'nickname'
+  | 'grade'
+  | 'track'
+  | 'department'
+  | 'bio'
+  | 'long_bio'
+  | 'interests'
+  | 'tech_stacks'
+  | 'tech_proficiency'
+  | 'wanted_tech_stacks'
+  | 'desired_roles'
+  | 'activity_types'
+  | 'activity_goals'
+  | 'activity_mode'
+  | 'activity_duration'
+  | 'availability_status'
+  | 'experiences'
+  | 'github_url'
+  | 'portfolio_url'
+  | 'is_public'
+  | 'visibility'
+  | 'created_at'
+  | 'updated_at'
+>;
+
+export interface SearchPublicProfilesOptions {
+  keyword?: string;
+  grade?: GradeOption | GradeOption[];
+  track?: MajorTrack | MajorTrack[];
+  techStacks?: string[];
+  techStackMatch?: 'any' | 'all';
+  excludeUserId?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface PublicProfileSearchResult {
+  profiles: PublicProfile[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  hasMore: boolean;
+}
+
 export interface ProfileUpsert {
   id: string;
   email: string;
@@ -165,6 +218,160 @@ export const mapProfileRow = (value: unknown): UserProfile => {
     visibility: profileVisibilityFromRow(visibilityValue, isPublicValue),
     created_at: requiredString(value, 'created_at'),
     updated_at: requiredString(value, 'updated_at'),
+  };
+};
+
+export const PUBLIC_PROFILE_COLUMNS = [
+  'id',
+  'name',
+  'nickname',
+  'grade',
+  'track',
+  'department',
+  'bio',
+  'long_bio',
+  'interests',
+  'tech_stacks',
+  'tech_proficiency',
+  'wanted_tech_stacks',
+  'desired_roles',
+  'activity_types',
+  'activity_goals',
+  'activity_mode',
+  'activity_duration',
+  'availability_status',
+  'experiences',
+  'github_url',
+  'portfolio_url',
+  'is_public',
+  'visibility',
+  'created_at',
+  'updated_at',
+].join(',');
+
+export const isPublicProfileRow = (row: unknown): boolean => {
+  if (!isRecord(row)) return false;
+  const visibility = row.visibility;
+  const isPublic = row.is_public;
+  const eff = profileVisibilityFromRow(visibility, isPublic);
+  return eff === 'public' && isPublic !== false;
+};
+
+export const mapPublicProfileRow = (value: unknown): PublicProfile => {
+  if (!isRecord(value)) throw new Error('프로필 응답 형식이 올바르지 않습니다.');
+  const gradeValue = requiredString(value, 'grade');
+  const trackValue = requiredString(value, 'track');
+  if (!isOneOf(GRADE_OPTIONS, gradeValue)) throw new Error('저장된 학년 값이 올바르지 않습니다.');
+  if (!isOneOf(MAJOR_TRACKS, trackValue)) throw new Error('저장된 전공 값이 올바르지 않습니다.');
+
+  const proficiencyValue = value.tech_proficiency;
+  let techProficiency: PublicProfile['tech_proficiency'] = null;
+  if (proficiencyValue !== null && proficiencyValue !== undefined) {
+    if (!isRecord(proficiencyValue)) throw new Error('저장된 기술 숙련도 형식이 올바르지 않습니다.');
+    const parsed: Record<string, TechProficiency | null> = {};
+    for (const [technology, level] of Object.entries(proficiencyValue)) {
+      if (level === null || level === '입문' || level === '활용 가능' || level === '숙련') parsed[technology] = level;
+      else throw new Error(`저장된 기술 숙련도 값이 올바르지 않습니다: ${technology}`);
+    }
+    techProficiency = parsed;
+  }
+
+  const visibilityValue = value.visibility;
+  const isPublicValue = value.is_public;
+  if (isPublicValue !== null && isPublicValue !== undefined && typeof isPublicValue !== 'boolean') {
+    throw new Error('저장된 공개 범위 형식이 올바르지 않습니다.');
+  }
+
+  return {
+    id: requiredString(value, 'id'),
+    name: requiredString(value, 'name'),
+    nickname: requiredString(value, 'nickname'),
+    grade: gradeValue,
+    track: trackValue,
+    department: nullableString(value, 'department'),
+    bio: nullableString(value, 'bio'),
+    long_bio: nullableString(value, 'long_bio'),
+    interests: stringArray(value, 'interests'),
+    tech_stacks: stringArray(value, 'tech_stacks'),
+    tech_proficiency: techProficiency,
+    wanted_tech_stacks: stringArray(value, 'wanted_tech_stacks'),
+    desired_roles: stringArray(value, 'desired_roles'),
+    activity_types: stringArray(value, 'activity_types'),
+    activity_goals: stringArray(value, 'activity_goals'),
+    activity_mode: nullableEnum(value, 'activity_mode', ['대면', '비대면', '혼합']),
+    activity_duration: nullableEnum(value, 'activity_duration', ['단기 (1개월 이내)', '장기 (3개월 이상)', '무관']),
+    availability_status: nullableEnum(value, 'availability_status', ['팀 구하는 중', '제안 환영', '활동 중', '참여 어려움']),
+    experiences: stringArray(value, 'experiences'),
+    github_url: nullableString(value, 'github_url'),
+    portfolio_url: nullableString(value, 'portfolio_url'),
+    is_public: typeof isPublicValue === 'boolean' ? isPublicValue : null,
+    visibility: profileVisibilityFromRow(visibilityValue, isPublicValue),
+    created_at: requiredString(value, 'created_at'),
+    updated_at: requiredString(value, 'updated_at'),
+  };
+};
+
+export const fetchPublicProfileById = async (userId: string): Promise<PublicProfile | null> => {
+  if (typeof userId !== 'string' || !userId.trim()) return null;
+  const { data, error } = await supabase.rpc('bridge_m20261119_fetch_public_profile', {
+    p_user_id: userId.trim(),
+  });
+  if (error) throw new Error(`공개 프로필 조회 실패: ${error.message}`);
+  if (data !== null && !isPublicProfileRow(data)) {
+    throw new Error('공개 범위가 아닌 프로필이 반환되었습니다.');
+  }
+  return data === null ? null : mapPublicProfileRow(data);
+};
+
+export const searchPublicProfiles = async (
+  options: SearchPublicProfilesOptions = {}
+): Promise<PublicProfileSearchResult> => {
+  const page = Math.max(1, Math.floor(options.page ?? 1));
+  const pageSize = Math.max(1, Math.min(100, Math.floor(options.pageSize ?? 12)));
+  const grades = options.grade === undefined
+    ? []
+    : (Array.isArray(options.grade) ? options.grade : [options.grade])
+      .filter((value): value is GradeOption => isOneOf(GRADE_OPTIONS, value));
+  const tracks = options.track === undefined
+    ? []
+    : (Array.isArray(options.track) ? options.track : [options.track])
+      .filter((value): value is MajorTrack => isOneOf(MAJOR_TRACKS, value));
+  const techStacks = Array.isArray(options.techStacks)
+    ? options.techStacks
+      .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      .map((value) => value.trim())
+    : [];
+
+  const { data, error } = await supabase.rpc('bridge_m20261119_search_public_profiles', {
+    p_keyword: typeof options.keyword === 'string' ? options.keyword.trim() : '',
+    p_grades: grades,
+    p_tracks: tracks,
+    p_tech_stacks: techStacks,
+    p_tech_stack_match: options.techStackMatch === 'all' ? 'all' : 'any',
+    p_exclude_user_id: typeof options.excludeUserId === 'string' && options.excludeUserId.trim()
+      ? options.excludeUserId.trim()
+      : null,
+    p_page: page,
+    p_page_size: pageSize,
+  });
+  if (error) throw new Error(`공개 프로필 목록 검색 실패: ${error.message}`);
+  if (!isRecord(data) || !Array.isArray(data.profiles)
+      || !Number.isInteger(data.totalCount) || (data.totalCount as number) < 0
+      || data.page !== page || data.pageSize !== pageSize
+      || !Number.isInteger(data.totalPages) || typeof data.hasMore !== 'boolean') {
+    throw new Error('프로필 검색 응답 형식이 올바르지 않습니다.');
+  }
+  const profiles = data.profiles.map((row) => {
+    if (!isPublicProfileRow(row)) throw new Error('공개 범위가 아닌 프로필이 반환되었습니다.');
+    return mapPublicProfileRow(row);
+  });
+  return {
+    profiles,
+    totalCount: data.totalCount as number,
+    page,
+    pageSize,
+    totalPages: data.totalPages as number,
+    hasMore: data.hasMore,
   };
 };
 
