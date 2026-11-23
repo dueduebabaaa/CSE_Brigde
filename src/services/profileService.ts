@@ -37,9 +37,37 @@ export interface UserProfile {
 }
 
 /**
- * 공개 사용자 프로필 (이메일 등 민감 개인정보 및 인증 정보 제외)
+ * Public response allowlist. Keep this explicit so adding a field to UserProfile
+ * never makes that field public by default. Privacy-sensitive allowlisted fields
+ * are documented in docs/PROFILE_SECURITY.md and still require product policy.
  */
-export type PublicProfile = Omit<UserProfile, 'email'>;
+export type PublicProfile = Pick<UserProfile,
+  | 'id'
+  | 'name'
+  | 'nickname'
+  | 'grade'
+  | 'track'
+  | 'department'
+  | 'bio'
+  | 'long_bio'
+  | 'interests'
+  | 'tech_stacks'
+  | 'tech_proficiency'
+  | 'wanted_tech_stacks'
+  | 'desired_roles'
+  | 'activity_types'
+  | 'activity_goals'
+  | 'activity_mode'
+  | 'activity_duration'
+  | 'availability_status'
+  | 'experiences'
+  | 'github_url'
+  | 'portfolio_url'
+  | 'is_public'
+  | 'visibility'
+  | 'created_at'
+  | 'updated_at'
+>;
 
 export interface SearchPublicProfilesOptions {
   keyword?: string;
@@ -221,28 +249,6 @@ export const PUBLIC_PROFILE_COLUMNS = [
   'updated_at',
 ].join(',');
 
-// Keep aligned with the profile RLS policies and public_profiles view.
-// Explicit public visibility is honored unless is_public explicitly disables it;
-// legacy rows are public only when is_public is true.
-const PUBLIC_PROFILE_SCOPE_FILTER = [
-  'and(visibility.eq.public,is_public.eq.true)',
-  'and(visibility.eq.public,is_public.is.null)',
-  'and(visibility.is.null,is_public.eq.true)',
-].join(',');
-
-const buildPublicProfileSearchFilter = (keyword?: string): string => {
-  if (!keyword) return PUBLIC_PROFILE_SCOPE_FILTER;
-  const sanitized = keyword.replace(/[%_,()]/g, '');
-  if (!sanitized) return PUBLIC_PROFILE_SCOPE_FILTER;
-  const keywordFilter = [
-    `name.ilike.%${sanitized}%`,
-    `nickname.ilike.%${sanitized}%`,
-    `bio.ilike.%${sanitized}%`,
-  ].join(',');
-  // Keep scope and keyword search in one PostgREST `or` parameter.
-  return `and(or(${PUBLIC_PROFILE_SCOPE_FILTER}),or(${keywordFilter}))`;
-};
-
 export const isPublicProfileRow = (row: unknown): boolean => {
   if (!isRecord(row)) return false;
   const visibility = row.visibility;
@@ -306,29 +312,15 @@ export const mapPublicProfileRow = (value: unknown): PublicProfile => {
 };
 
 export const fetchPublicProfileById = async (userId: string): Promise<PublicProfile | null> => {
-  if (typeof userId !== 'string' || !userId.trim()) {
-    return null;
+  if (typeof userId !== 'string' || !userId.trim()) return null;
+  const { data, error } = await supabase.rpc('bridge_m20261119_fetch_public_profile', {
+    p_user_id: userId.trim(),
+  });
+  if (error) throw new Error(`공개 프로필 조회 실패: ${error.message}`);
+  if (data !== null && !isPublicProfileRow(data)) {
+    throw new Error('공개 범위가 아닌 프로필이 반환되었습니다.');
   }
-
-  const { data, error } = await supabase
-    .from('profiles')
-    .select(PUBLIC_PROFILE_COLUMNS)
-    .eq('id', userId.trim())
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(`공개 프로필 조회 실패: ${error.message}`);
-  }
-
-  if (!data) {
-    return null;
-  }
-
-  if (!isPublicProfileRow(data)) {
-    return null;
-  }
-
-  return mapPublicProfileRow(data);
+  return data === null ? null : mapPublicProfileRow(data);
 };
 
 export const searchPublicProfiles = async (
@@ -336,89 +328,50 @@ export const searchPublicProfiles = async (
 ): Promise<PublicProfileSearchResult> => {
   const page = Math.max(1, Math.floor(options.page ?? 1));
   const pageSize = Math.max(1, Math.min(100, Math.floor(options.pageSize ?? 12)));
-  const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1;
+  const grades = options.grade === undefined
+    ? []
+    : (Array.isArray(options.grade) ? options.grade : [options.grade])
+      .filter((value): value is GradeOption => isOneOf(GRADE_OPTIONS, value));
+  const tracks = options.track === undefined
+    ? []
+    : (Array.isArray(options.track) ? options.track : [options.track])
+      .filter((value): value is MajorTrack => isOneOf(MAJOR_TRACKS, value));
+  const techStacks = Array.isArray(options.techStacks)
+    ? options.techStacks
+      .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      .map((value) => value.trim())
+    : [];
 
-  let query = supabase
-    .from('profiles')
-    .select(PUBLIC_PROFILE_COLUMNS, { count: 'exact' });
-
-  // Filter rows and exact counts on the server using the same public scope.
-  const keyword = typeof options.keyword === 'string' ? options.keyword.trim() : '';
-  query = query.or(buildPublicProfileSearchFilter(keyword));
-
-  // 2. 본인 계정 제외 (옵션)
-  if (typeof options.excludeUserId === 'string' && options.excludeUserId.trim()) {
-    query = query.neq('id', options.excludeUserId.trim());
+  const { data, error } = await supabase.rpc('bridge_m20261119_search_public_profiles', {
+    p_keyword: typeof options.keyword === 'string' ? options.keyword.trim() : '',
+    p_grades: grades,
+    p_tracks: tracks,
+    p_tech_stacks: techStacks,
+    p_tech_stack_match: options.techStackMatch === 'all' ? 'all' : 'any',
+    p_exclude_user_id: typeof options.excludeUserId === 'string' && options.excludeUserId.trim()
+      ? options.excludeUserId.trim()
+      : null,
+    p_page: page,
+    p_page_size: pageSize,
+  });
+  if (error) throw new Error(`공개 프로필 목록 검색 실패: ${error.message}`);
+  if (!isRecord(data) || !Array.isArray(data.profiles)
+      || !Number.isInteger(data.totalCount) || (data.totalCount as number) < 0
+      || data.page !== page || data.pageSize !== pageSize
+      || !Number.isInteger(data.totalPages) || typeof data.hasMore !== 'boolean') {
+    throw new Error('프로필 검색 응답 형식이 올바르지 않습니다.');
   }
-
-  // 3. 학년 필터 (단일 또는 복수)
-  if (options.grade) {
-    if (Array.isArray(options.grade)) {
-      const validGrades = options.grade.filter((g) => isOneOf(GRADE_OPTIONS, g));
-      if (validGrades.length > 0) {
-        query = query.in('grade', validGrades);
-      }
-    } else if (isOneOf(GRADE_OPTIONS, options.grade)) {
-      query = query.eq('grade', options.grade);
-    }
-  }
-
-  // 4. 전공 트랙 필터 (단일 또는 복수)
-  if (options.track) {
-    if (Array.isArray(options.track)) {
-      const validTracks = options.track.filter((t) => isOneOf(MAJOR_TRACKS, t));
-      if (validTracks.length > 0) {
-        query = query.in('track', validTracks);
-      }
-    } else if (isOneOf(MAJOR_TRACKS, options.track)) {
-      query = query.eq('track', options.track);
-    }
-  }
-
-  // 5. 기술 스택 필터
-  if (Array.isArray(options.techStacks) && options.techStacks.length > 0) {
-    const cleanedTechs = options.techStacks
-      .filter((t): t is string => typeof t === 'string' && t.trim().length > 0)
-      .map((t) => t.trim());
-    if (cleanedTechs.length > 0) {
-      if (options.techStackMatch === 'all') {
-        query = query.contains('tech_stacks', cleanedTechs);
-      } else {
-        query = query.overlaps('tech_stacks', cleanedTechs);
-      }
-    }
-  }
-
-  // 6. 정렬 및 페이지네이션
-  query = query.order('updated_at', { ascending: false }).range(from, to);
-
-  const { data, error, count } = await query;
-
-  if (error) {
-    throw new Error(`공개 프로필 목록 검색 실패: ${error.message}`);
-  }
-
-  if (!Array.isArray(data)) {
-    throw new Error('프로필 응답 형식이 올바르지 않습니다.');
-  }
-
-  // DB 필터링 외에도 애플리케이션 레벨에서 비공개 프로필 재차 방어 필터링
-  const profiles = data
-    .filter(isPublicProfileRow)
-    .map(mapPublicProfileRow);
-
-  const totalCount = typeof count === 'number' ? count : profiles.length;
-  const totalPages = Math.ceil(totalCount / pageSize);
-  const hasMore = page < totalPages;
-
+  const profiles = data.profiles.map((row) => {
+    if (!isPublicProfileRow(row)) throw new Error('공개 범위가 아닌 프로필이 반환되었습니다.');
+    return mapPublicProfileRow(row);
+  });
   return {
     profiles,
-    totalCount,
+    totalCount: data.totalCount as number,
     page,
     pageSize,
-    totalPages,
-    hasMore,
+    totalPages: data.totalPages as number,
+    hasMore: data.hasMore,
   };
 };
 

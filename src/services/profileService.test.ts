@@ -1,10 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { MAJOR_TRACKS } from '../constants/majors';
 
 const supabaseMocks = vi.hoisted(() => {
   const queryResult = { data: [] as unknown[] | null, error: null as unknown, count: 0 as number | null };
   return {
     getUser: vi.fn(),
     from: vi.fn(),
+    rpc: vi.fn(),
+    upsert: vi.fn(),
+    single: vi.fn(),
     update: vi.fn(),
     eq: vi.fn(),
     select: vi.fn(),
@@ -24,6 +28,7 @@ vi.mock('../lib/supabase', () => ({
   supabase: {
     auth: { getUser: supabaseMocks.getUser },
     from: supabaseMocks.from,
+    rpc: supabaseMocks.rpc,
   },
 }));
 
@@ -34,9 +39,10 @@ import {
   mapPublicProfileRow,
   profileVisibilityFromRow,
   updateMyProfile,
+  fetchMyProfile,
+  saveMyProfile,
   fetchPublicProfileById,
   searchPublicProfiles,
-  PUBLIC_PROFILE_COLUMNS,
 } from './profileService';
 
 const baseProfile = {
@@ -84,6 +90,8 @@ const query: Record<string, unknown> = {
   eq: supabaseMocks.eq,
   select: supabaseMocks.select,
   maybeSingle: supabaseMocks.maybeSingle,
+  upsert: supabaseMocks.upsert,
+  single: supabaseMocks.single,
   or: supabaseMocks.or,
   neq: supabaseMocks.neq,
   in: supabaseMocks.in,
@@ -282,208 +290,140 @@ describe('mapPublicProfileRow', () => {
   });
 });
 
-describe('fetchPublicProfileById (공개 프로필 상세 조회)', () => {
+describe('public profile security RPC client', () => {
+  const payload = { profiles: [publicRow], totalCount: 1, page: 1, pageSize: 12, totalPages: 1, hasMore: false };
   beforeEach(() => {
     vi.clearAllMocks();
-    supabaseMocks.queryResult = { data: [], error: null, count: 0 };
     supabaseMocks.from.mockReturnValue(query);
     supabaseMocks.select.mockReturnValue(query);
     supabaseMocks.eq.mockReturnValue(query);
-    supabaseMocks.maybeSingle.mockResolvedValue({ data: publicRow, error: null });
+    supabaseMocks.maybeSingle.mockResolvedValue({ data: baseProfile, error: null });
+    supabaseMocks.upsert.mockReturnValue(query);
+    supabaseMocks.single.mockResolvedValue({ data: baseProfile, error: null });
+    supabaseMocks.rpc.mockResolvedValue({ data: publicRow, error: null });
   });
-
-  it('공개 프로필을 정상 조회하고 이메일은 반환하지 않는다', async () => {
+  it('keeps own profile email read available', async () => {
+    const result = await fetchMyProfile('user-1');
+    expect(supabaseMocks.select.mock.calls[0][0]).toContain('email');
+    expect(result?.email).toBe('student@knu.ac.kr');
+  });
+  it('keeps onboarding profile upsert available', async () => {
+    const profile = baseProfile as unknown as Parameters<typeof saveMyProfile>[0];
+    const result = await saveMyProfile(profile);
+    expect(supabaseMocks.upsert).toHaveBeenCalledWith(profile, { onConflict: 'id' });
+    expect(result.email).toBe('student@knu.ac.kr');
+  });
+  it('uses fixed public profile RPC and returns no email', async () => {
     const result = await fetchPublicProfileById('user-public-1');
-
-    expect(supabaseMocks.from).toHaveBeenCalledWith('profiles');
-    expect(supabaseMocks.select).toHaveBeenCalledWith(PUBLIC_PROFILE_COLUMNS);
-    expect(PUBLIC_PROFILE_COLUMNS).not.toContain('email');
-    expect(supabaseMocks.eq).toHaveBeenCalledWith('id', 'user-public-1');
-    expect(result).not.toBeNull();
-    expect(result?.id).toBe('user-public-1');
-    expect(result).not.toHaveProperty('email');
-  });
-
-  it('비공개 사용자(visibility: private) 조회 시 안전하게 null을 반환한다', async () => {
-    supabaseMocks.maybeSingle.mockResolvedValueOnce({
-      data: { ...publicRow, visibility: 'private', is_public: false },
-      error: null,
-    });
-
-    const result = await fetchPublicProfileById('user-private-1');
-    expect(result).toBeNull();
-  });
-
-  it('팀 공개(visibility: team_only) 사용자 조회 시 안전하게 null을 반환한다', async () => {
-    supabaseMocks.maybeSingle.mockResolvedValueOnce({
-      data: { ...publicRow, visibility: 'team_only' },
-      error: null,
-    });
-
-    const result = await fetchPublicProfileById('user-team-1');
-    expect(result).toBeNull();
-  });
-
-  it('visibility가 public이어도 is_public=false인 프로필은 상세 결과에서 제외한다', async () => {
-    supabaseMocks.maybeSingle.mockResolvedValueOnce({
-      data: { ...publicRow, is_public: false },
-      error: null,
-    });
-
-    expect(await fetchPublicProfileById('user-disabled-public')).toBeNull();
-  });
-
-  it('존재하지 않는 사용자(data: null) 조회 시 안전하게 null을 반환한다', async () => {
-    supabaseMocks.maybeSingle.mockResolvedValueOnce({
-      data: null,
-      error: null,
-    });
-
-    const result = await fetchPublicProfileById('non-existent-user');
-    expect(result).toBeNull();
-  });
-
-  it('빈 문자열이나 공백 userId가 주어지면 DB를 조회하지 않고 null을 반환한다', async () => {
-    const result = await fetchPublicProfileById('   ');
-    expect(result).toBeNull();
+    expect(supabaseMocks.rpc).toHaveBeenCalledWith('bridge_m20261119_fetch_public_profile', { p_user_id: 'user-public-1' });
     expect(supabaseMocks.from).not.toHaveBeenCalled();
-  });
-
-  it('DB 조회 에러 발생 시 예외를 던진다', async () => {
-    supabaseMocks.maybeSingle.mockResolvedValueOnce({
-      data: null,
-      error: { message: 'Database connection failed' },
+    expect(result).not.toHaveProperty('email');
+    expect(result).toMatchObject({
+      id: 'user-public-1',
+      name: publicRow.name,
+      nickname: publicRow.nickname,
+      grade: publicRow.grade,
+      track: publicRow.track,
     });
-
-    await expect(fetchPublicProfileById('user-1'))
-      .rejects.toThrow('공개 프로필 조회 실패: Database connection failed');
   });
-});
-
-describe('searchPublicProfiles (공개 사용자 목록 검색)', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    supabaseMocks.queryResult = {
-      data: [publicRow],
-      error: null,
-      count: 1,
-    };
-    supabaseMocks.from.mockReturnValue(query);
-    supabaseMocks.select.mockReturnValue(query);
-    supabaseMocks.or.mockReturnValue(query);
-    supabaseMocks.neq.mockReturnValue(query);
-    supabaseMocks.in.mockReturnValue(query);
-    supabaseMocks.contains.mockReturnValue(query);
-    supabaseMocks.overlaps.mockReturnValue(query);
-    supabaseMocks.order.mockReturnValue(query);
-    supabaseMocks.range.mockReturnValue(query);
+  it('returns null for private profiles and propagates auth failures', async () => {
+    supabaseMocks.rpc.mockResolvedValueOnce({ data: null, error: null });
+    expect(await fetchPublicProfileById('private-user')).toBeNull();
+    supabaseMocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'UNAUTHENTICATED' } });
+    await expect(fetchPublicProfileById('public-user')).rejects.toThrow('UNAUTHENTICATED');
+    supabaseMocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'SCHOOL_EMAIL_REQUIRED' } });
+    await expect(fetchPublicProfileById('public-user')).rejects.toThrow('SCHOOL_EMAIL_REQUIRED');
   });
-
-  it('공개 프로필만 반환하며 이메일 등 민감 정보를 포함하지 않는다', async () => {
-    const result = await searchPublicProfiles();
-
-    expect(supabaseMocks.from).toHaveBeenCalledWith('profiles');
-    expect(supabaseMocks.select).toHaveBeenCalledWith(PUBLIC_PROFILE_COLUMNS, { count: 'exact' });
-    expect(PUBLIC_PROFILE_COLUMNS).not.toContain('email');
-    expect(result.profiles).toHaveLength(1);
+  it('sends search filters and pagination to the RPC', async () => {
+    supabaseMocks.rpc.mockResolvedValueOnce({ data: { ...payload, page: 2, pageSize: 10 }, error: null });
+    const result = await searchPublicProfiles({ keyword: 'keyword', techStacks: [' React ', 'TypeScript'], techStackMatch: 'all', excludeUserId: 'excluded', page: 2, pageSize: 10 });
+    expect(supabaseMocks.rpc).toHaveBeenCalledWith('bridge_m20261119_search_public_profiles', {
+      p_keyword: 'keyword', p_grades: [], p_tracks: [], p_tech_stacks: ['React', 'TypeScript'],
+      p_tech_stack_match: 'all', p_exclude_user_id: 'excluded', p_page: 2, p_page_size: 10,
+    });
+    expect(result.profiles[0]).toMatchObject({
+      id: 'user-public-1',
+      name: publicRow.name,
+      nickname: publicRow.nickname,
+      grade: publicRow.grade,
+      track: publicRow.track,
+    });
     expect(result.profiles[0]).not.toHaveProperty('email');
     expect(result.totalCount).toBe(1);
-    expect(result.page).toBe(1);
   });
-
-  it('DB 응답에 비공개 프로필이 섞여 있어도 애플리케이션 레벨에서 필터링하여 제외한다', async () => {
-    supabaseMocks.queryResult = {
-      data: [
-        publicRow,
-        { ...publicRow, id: 'private-user', visibility: 'private', is_public: false },
-        { ...publicRow, id: 'team-user', visibility: 'team_only', is_public: true },
-        { ...publicRow, id: 'disabled-public-user', visibility: 'public', is_public: false },
-      ],
-      error: null,
-      // The server-side exact count is calculated after the same scope filter.
-      count: 1,
-    };
-
-    const result = await searchPublicProfiles();
-
-    expect(result.profiles).toHaveLength(1);
-    expect(result.profiles[0].id).toBe('user-public-1');
-    expect(result.totalCount).toBe(1);
-    expect(supabaseMocks.or).toHaveBeenCalledTimes(1);
-    const serverFilter = supabaseMocks.or.mock.calls[0][0] as string;
-    expect(serverFilter).toContain('visibility.eq.public');
-    expect(serverFilter).toContain('is_public.eq.true');
-    expect(serverFilter).toContain('is_public.is.null');
-    expect(serverFilter).toContain('visibility.is.null');
-  });
-
-  it('검색어(keyword) 필터 전달 시 name, nickname, bio에 ilike 검색을 적용한다', async () => {
-    await searchPublicProfiles({ keyword: '김컴공' });
-
-    expect(supabaseMocks.or).toHaveBeenCalledTimes(1);
-    const serverFilter = supabaseMocks.or.mock.calls[0][0] as string;
-    expect(serverFilter).toContain('name.ilike.%김컴공%');
-    expect(serverFilter).toContain('nickname.ilike.%김컴공%');
-    expect(serverFilter).toContain('bio.ilike.%김컴공%');
-    expect(serverFilter).toContain('visibility.eq.public');
-  });
-
-  it('단일 학년 및 복수 학년 필터를 정상 적용한다', async () => {
+  it('maps single and multiple grade filters to RPC arguments', async () => {
+    supabaseMocks.rpc.mockResolvedValue({ data: { ...payload, profiles: [] }, error: null });
     await searchPublicProfiles({ grade: '3학년' });
-    expect(supabaseMocks.eq).toHaveBeenCalledWith('grade', '3학년');
+    expect(supabaseMocks.rpc).toHaveBeenLastCalledWith('bridge_m20261119_search_public_profiles', expect.objectContaining({
+      p_grades: ['3학년'],
+    }));
 
     await searchPublicProfiles({ grade: ['2학년', '3학년'] });
-    expect(supabaseMocks.in).toHaveBeenCalledWith('grade', ['2학년', '3학년']);
+    expect(supabaseMocks.rpc).toHaveBeenLastCalledWith('bridge_m20261119_search_public_profiles', expect.objectContaining({
+      p_grades: ['2학년', '3학년'],
+    }));
   });
-
-  it('단일 전공 및 복수 전공 필터를 정상 적용한다', async () => {
+  it('maps single and multiple track filters to RPC arguments', async () => {
+    supabaseMocks.rpc.mockResolvedValue({ data: { ...payload, profiles: [] }, error: null });
     await searchPublicProfiles({ track: '인공지능컴퓨팅전공' });
-    expect(supabaseMocks.eq).toHaveBeenCalledWith('track', '인공지능컴퓨팅전공');
+    expect(supabaseMocks.rpc).toHaveBeenLastCalledWith('bridge_m20261119_search_public_profiles', expect.objectContaining({
+      p_tracks: ['인공지능컴퓨팅전공'],
+    }));
 
-    await searchPublicProfiles({ track: ['플랫폼소프트웨어전공', '데이터사이언스전공'] as any });
-    expect(supabaseMocks.in).toHaveBeenCalledWith('track', ['플랫폼소프트웨어전공']);
+    const tracks = [MAJOR_TRACKS[1], MAJOR_TRACKS[2]];
+    await searchPublicProfiles({ track: tracks });
+    expect(supabaseMocks.rpc).toHaveBeenLastCalledWith('bridge_m20261119_search_public_profiles', expect.objectContaining({
+      p_tracks: tracks,
+    }));
   });
-
-  it('기술 스택 필터 시 overlaps 또는 contains를 지원한다', async () => {
-    await searchPublicProfiles({ techStacks: ['React', 'TypeScript'] });
-    expect(supabaseMocks.overlaps).toHaveBeenCalledWith('tech_stacks', ['React', 'TypeScript']);
-
-    await searchPublicProfiles({ techStacks: ['React', 'TypeScript'], techStackMatch: 'all' });
-    expect(supabaseMocks.contains).toHaveBeenCalledWith('tech_stacks', ['React', 'TypeScript']);
+  it('sends combined keyword, grade, track, tech and exclude filters together', async () => {
+    supabaseMocks.rpc.mockResolvedValueOnce({ data: { ...payload, profiles: [] }, error: null });
+    await searchPublicProfiles({
+      keyword: '컴퓨터',
+      grade: ['2학년', '3학년'],
+      track: '인공지능컴퓨팅전공',
+      techStacks: ['React', 'TypeScript'],
+      techStackMatch: 'any',
+      excludeUserId: 'self',
+    });
+    expect(supabaseMocks.rpc).toHaveBeenCalledWith('bridge_m20261119_search_public_profiles', {
+      p_keyword: '컴퓨터',
+      p_grades: ['2학년', '3학년'],
+      p_tracks: ['인공지능컴퓨팅전공'],
+      p_tech_stacks: ['React', 'TypeScript'],
+      p_tech_stack_match: 'any',
+      p_exclude_user_id: 'self',
+      p_page: 1,
+      p_page_size: 12,
+    });
   });
-
-  it('본인 계정 제외(excludeUserId)를 적용한다', async () => {
-    await searchPublicProfiles({ excludeUserId: 'my-own-id' });
-    expect(supabaseMocks.neq).toHaveBeenCalledWith('id', 'my-own-id');
-  });
-
-  it('페이지네이션 range를 올바르게 계산한다', async () => {
-    await searchPublicProfiles({ page: 2, pageSize: 10 });
-    // page 2 with pageSize 10 -> from 10 to 19
-    expect(supabaseMocks.range).toHaveBeenCalledWith(10, 19);
-  });
-
-  it('조회 결과가 없을 때 안전하게 빈 결과를 반환한다', async () => {
-    supabaseMocks.queryResult = {
-      data: [],
+  it('returns an empty page and server pagination metadata when no profiles match', async () => {
+    supabaseMocks.rpc.mockResolvedValueOnce({
+      data: { profiles: [], totalCount: 0, page: 1, pageSize: 12, totalPages: 0, hasMore: false },
       error: null,
-      count: 0,
-    };
-
-    const result = await searchPublicProfiles();
-    expect(result.profiles).toEqual([]);
-    expect(result.totalCount).toBe(0);
-    expect(result.totalPages).toBe(0);
-    expect(result.hasMore).toBe(false);
+    });
+    await expect(searchPublicProfiles()).resolves.toEqual({
+      profiles: [], totalCount: 0, page: 1, pageSize: 12, totalPages: 0, hasMore: false,
+    });
   });
-
-  it('DB 조회 에러 시 예외를 던진다', async () => {
-    supabaseMocks.queryResult = {
-      data: null,
-      error: { message: 'Query error' },
-      count: null,
-    };
-
-    await expect(searchPublicProfiles()).rejects.toThrow('공개 프로필 목록 검색 실패: Query error');
+  it('propagates search RPC errors without querying profiles directly', async () => {
+    supabaseMocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'Query error' } });
+    await expect(searchPublicProfiles()).rejects.toThrow('Query error');
+    expect(supabaseMocks.from).not.toHaveBeenCalled();
+  });
+  it('does not call the detail RPC for a blank user id', async () => {
+    expect(await fetchPublicProfileById('  ')).toBeNull();
+    expect(supabaseMocks.rpc).not.toHaveBeenCalled();
+  });
+  it('rejects private rows returned by malformed RPC data', async () => {
+    supabaseMocks.rpc.mockResolvedValueOnce({
+      data: { ...payload, profiles: [{ ...publicRow, visibility: 'private', is_public: false }] }, error: null,
+    });
+    await expect(searchPublicProfiles()).rejects.toThrow();
+  });
+  it('does not return email even if the RPC response contains an unexpected property', async () => {
+    supabaseMocks.rpc.mockResolvedValueOnce({ data: { ...publicRow, email: 'private@knu.ac.kr' }, error: null });
+    const result = await fetchPublicProfileById('user-public-1');
+    expect(result).not.toHaveProperty('email');
   });
 });
