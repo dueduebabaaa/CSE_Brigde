@@ -96,7 +96,7 @@ B(백엔드)가 제공하는 raw camelCase DTO를 C(알고리즘)가 검증·정
     },
     myAvailability: Availability[], // 팀장(기준 학생)의 활동 가능 시간표
     candidates: {
-      profile: UserProfile;         // 후보 학생 프로필
+      profile: Pick<UserProfile, 'id' | 'visibility' | 'isPublic' | 'desiredRoles' | 'techStacks'>;
       availability: Availability[]; // 후보 학생 시간표
     }[]
   ): MemberMatchResult[];
@@ -119,6 +119,51 @@ B(백엔드)가 제공하는 raw camelCase DTO를 C(알고리즘)가 검증·정
   - `STANDARD_ROLE_KEYS`: 11개 표준 역할 key 상수 배열
 
 ---
+
+### 공개 프로필 팀원 추천
+
+`src/algorithms/publicMemberRecommendations.ts`의 순수 함수다. 입력의 `ServiceUserProfile`은 `src/services/profileService.ts`의 `UserProfile`이며, 내부 `calculateMemberMatch()`는 위의 camelCase 알고리즘 공통 타입을 사용한다.
+
+```typescript
+type PublicMemberProfile = Pick<
+  ServiceUserProfile,
+  'id' | 'visibility' | 'is_public' | 'desired_roles' | 'tech_stacks'
+>;
+
+interface PublicMemberRecommendations {
+  status: 'no-candidates' | 'no-public-candidates' | 'self-only'
+    | 'insufficient-profile-data' | 'no-evaluable-match' | 'evaluated';
+  matches: (MatchResult & { hasMissingRequestedProfileData: boolean })[];
+}
+
+declare function recommendPublicMembers(
+  myUserId: string,
+  requirements: {
+    desiredRoles?: readonly string[] | null;
+    requiredTechStacks?: readonly string[] | null;
+  } | null,
+  profiles: readonly (PublicMemberProfile | null)[] | null | undefined,
+): PublicMemberRecommendations;
+```
+
+| `status` | 의미 |
+| --- | --- |
+| `no-candidates` | 입력이 없거나, null 항목과 공백 ID를 제외한 후보가 없다. |
+| `no-public-candidates` | 공개 조건을 충족하는 후보가 없다. |
+| `self-only` | 공개 후보에서 본인을 제외하고 나면 후보가 없다. |
+| `insufficient-profile-data` | 남은 모든 후보의 역할과 보유 기술이 비어 있다. |
+| `no-evaluable-match` | 후보 정보는 있으나 요청 조건과 비교할 수 있는 항목이 없다. |
+| `evaluated` | 하나 이상의 후보를 평가했다. 계산된 0점도 유효하다. |
+
+`matches`는 `evaluated` 외 상태에서 빈 배열이다. 각 결과의 `targetId`는 후보 ID, `score`는 0~100 정수 점수, `matchedTags`는 일치 보유 기술, `reasons`는 알고리즘 안내다. `hasMissingRequestedProfileData`는 요청한 역할 또는 기술 항목에 해당하는 후보 목록이 비어 있음을 나타낸다. 부분 결과는 입력된 정보 범위에서 해석한다.
+
+- `null` 요구 조건과 누락·`null`·빈 역할 또는 기술 목록은 요청이 없는 것으로 처리한다. 후보의 `null` 역할·기술 목록도 빈 배열로 처리한다. 후보별로 요청한 항목 중 하나 이상에 후보 데이터가 있을 때만 평가한다.
+- `visibility: 'public'`은 `is_public: true` 또는 `null`에서 허용한다. `visibility: null`은 `is_public: true`일 때 허용한다. `is_public: false`, `private`, `team_only`는 제외한다. 본인 ID를 제외한 뒤 사용자별 첫 공개 레코드를 사용한다.
+- 기본 가중치는 역할 45%, 보유 기술 30%, 주간 공통 시간 25%다. 역할은 일치 여부, 기술은 정규화·중복 제거한 요구 기술 중 일치 비율, 시간은 공통 시간의 4시간 대비 비율로 계산하며 4시간부터 만점이다. 관심 분야는 점수에 반영하지 않는다.
+- 양쪽 모두 유효한 가능 시간 슬롯이 있을 때 시간 항목을 평가한다. 공개 프로필 연결에는 주간 슬롯이 제공되지 않아 시간 가중치를 제외한다. 역할과 기술을 모두 요청하면 60:40으로 환산하고, 하나만 요청하면 해당 항목을 100점 기준으로 평가한다. 요구 기술이 없으면 기술 가중치를 빼고, 요구 기술이 있으나 평가 대상 후보의 보유 기술이 비어 있으면 기술 점수는 0이다.
+- 추천 이유는 실제 역할·기술 일치에서 생성한다. 시간표가 있으면 주간 공통 시간 합계나 공통 시간 없음, 시간표가 없으면 활동 가능 시간 확인 안내를 표시한다. 이 안내는 시간 데이터 상태만 설명하며 0점의 원인을 나타내지 않는다.
+
+이 함수는 전달된 후보만 평가한다. PR #17의 연결 범위는 순수 함수와 테스트이며, 실제 Supabase 조회와 팀원 탐색 UI 호출은 포함되지 않았다.
 
 ### 2.3 팀 빌더 역량 균형 분석 (`src/algorithms/teamAnalyzer.ts`)
 
@@ -545,7 +590,7 @@ export function calculateMemberMatch(
   },
   myAvailability: Availability[],
   candidates: {
-    profile: UserProfile;
+    profile: Pick<UserProfile, 'id' | 'visibility' | 'isPublic' | 'desiredRoles' | 'techStacks'>;
     availability: Availability[];
   }[]
 ): MemberMatchResult[];
