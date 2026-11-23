@@ -2,6 +2,10 @@ import type { Availability } from '../types';
 
 export type ProfileVisibility = 'public' | 'team_only' | 'private';
 
+export function hasExplicitPublicProfileConsent(visibility: unknown, isPublic: unknown): boolean {
+  return visibility === 'public' && isPublic === true;
+}
+
 /** General discovery only. This is not authorization or a database access policy. */
 export function isPublicAlgorithmCandidate(profile: { isPublic?: boolean; visibility?: unknown }): boolean {
   if (profile.visibility !== undefined) {

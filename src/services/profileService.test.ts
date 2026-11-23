@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const supabaseMocks = vi.hoisted(() => ({
+  rpc: vi.fn(),
   getUser: vi.fn(),
   from: vi.fn(),
   update: vi.fn(),
@@ -11,12 +12,13 @@ const supabaseMocks = vi.hoisted(() => ({
 
 vi.mock('../lib/supabase', () => ({
   supabase: {
+    rpc: supabaseMocks.rpc,
     auth: { getUser: supabaseMocks.getUser },
     from: supabaseMocks.from,
   },
 }));
 
-import { isProfileComplete, mapProfileRow, profileVisibilityFromRow, updateMyProfile } from './profileService';
+import { fetchPublicProfileById, searchPublicProfiles, isProfileComplete, mapProfileRow, profileVisibilityFromRow, updateMyProfile } from './profileService';
 
 const baseProfile = {
   id: 'user-1',
@@ -180,5 +182,54 @@ describe('내 프로필 부분 수정', () => {
     expect(supabaseMocks.update).not.toHaveBeenCalled();
     expect(supabaseMocks.eq).toHaveBeenCalledWith('id', 'user-1');
     expect(result).toMatchObject({ id: 'user-1', name: baseProfile.name });
+  });
+});
+
+describe('공개 프로필 RPC', () => {
+  const publicRow = { ...baseProfile, is_public: true, visibility: 'public', phone: 'private', kakao_id: 'private' };
+  const result = (profiles: unknown[]) => ({ profiles, totalCount: profiles.length, page: 1, pageSize: 12,
+    totalPages: profiles.length ? 1 : 0, hasMore: false });
+
+  it('서버 검색 필터와 페이지를 전달하고 공개 허용 필드만 반환한다', async () => {
+    supabaseMocks.rpc.mockResolvedValueOnce({ data: result([publicRow]), error: null });
+    const response = await searchPublicProfiles({
+      keyword: ' 학생 ', grade: '1학년', track: '플랫폼소프트웨어전공',
+      techStacks: [' React '], techStackMatch: 'all', excludeUserId: 'viewer',
+    });
+    expect(supabaseMocks.rpc).toHaveBeenLastCalledWith('bridge_m20261119_search_public_profiles', {
+      p_keyword: '학생', p_grades: ['1학년'], p_tracks: ['플랫폼소프트웨어전공'],
+      p_tech_stacks: ['React'], p_tech_stack_match: 'all', p_exclude_user_id: 'viewer', p_page: 1, p_page_size: 12,
+    });
+    expect(response.profiles[0]).toMatchObject({ id: baseProfile.id, tech_stacks: ['React'] });
+    expect(Object.keys(response.profiles[0])).not.toEqual(expect.arrayContaining(['email']));
+    expect(Object.keys(response.profiles[0])).not.toContain('phone');
+    expect(Object.keys(response.profiles[0])).not.toContain('kakao_id');
+  });
+
+  it.each([
+    { visibility: null, is_public: true },
+    { visibility: null, is_public: false },
+    { visibility: null, is_public: null },
+    { visibility: 'private', is_public: true },
+    { visibility: 'private', is_public: false },
+    { visibility: 'private', is_public: null },
+    { visibility: 'team_only', is_public: true },
+    { visibility: 'team_only', is_public: false },
+    { visibility: 'team_only', is_public: null },
+    { visibility: 'public', is_public: false },
+    { visibility: 'public', is_public: null },
+  ])('동의가 없거나 충돌하는 응답은 목록과 상세에서 거부한다 (%j)', async (visibility) => {
+    const row = { ...publicRow, ...visibility };
+    supabaseMocks.rpc.mockResolvedValueOnce({ data: result([row]), error: null });
+    await expect(searchPublicProfiles()).rejects.toThrow('공개 범위가 아닌');
+    supabaseMocks.rpc.mockResolvedValueOnce({ data: row, error: null });
+    await expect(fetchPublicProfileById(row.id)).rejects.toThrow('공개 범위가 아닌');
+  });
+
+  it('빈 응답과 서버 인증 오류를 구분한다', async () => {
+    supabaseMocks.rpc.mockResolvedValueOnce({ data: result([]), error: null });
+    await expect(searchPublicProfiles()).resolves.toMatchObject({ profiles: [], totalCount: 0 });
+    supabaseMocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'SCHOOL_EMAIL_REQUIRED' } });
+    await expect(searchPublicProfiles()).rejects.toThrow('공개 프로필 목록 검색 실패');
   });
 });

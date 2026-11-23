@@ -1,9 +1,8 @@
+import { hasExplicitPublicProfileConsent } from '../../algorithms/inputSafety';
 import { useEffect, useState } from 'react';
 import type { GradeOption, MajorTrack } from '../../constants/majors';
-import type { TechProficiency, UserProfile } from '../../services/profileService';
-
-// Matches PR #10's public contract until the verified service can be imported.
-export type PublicProfile = Omit<UserProfile, 'email'>;
+import { fetchPublicProfileById, searchPublicProfiles, type PublicProfile, type TechProficiency } from '../../services/profileService';
+export type { PublicProfile } from '../../services/profileService';
 
 export interface MemberSearchOptions {
   keyword?: string;
@@ -30,9 +29,13 @@ export interface PublicProfileSource {
   fetchPublicProfileById: (userId: string) => Promise<PublicProfile | null>;
 }
 
+export const publicProfileSource: PublicProfileSource = {
+  searchPublicProfiles: (options) => searchPublicProfiles(options),
+  fetchPublicProfileById: (id) => fetchPublicProfileById(id),
+};
+
 export function isDiscoverable(profile: PublicProfile): boolean {
-  return (profile.visibility === 'public' && profile.is_public !== false)
-    || (profile.visibility === null && profile.is_public === true);
+  return hasExplicitPublicProfileConsent(profile.visibility, profile.is_public);
 }
 
 export function memberName(profile: PublicProfile): string {

@@ -81,7 +81,7 @@ describe('recommendPublicMembers', () => {
       publicProfile('explicit', { is_public: null }),
     ];
     expect(recommendPublicMembers('me', requirements, profiles).matches.map((m) => [m.targetId, m.score]))
-      .toEqual([['explicit', 80], ['legacy', 80], ['same', 80]]);
+      .toEqual([['same', 80]]);
   });
 
   it('reports empty, private-only, self-only, insufficient and non-comparable inputs separately', () => {

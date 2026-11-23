@@ -15,6 +15,7 @@ import { RecruitmentsPage } from './pages/RecruitmentsPage';
 import { RecruitmentCreatePage } from './pages/RecruitmentCreatePage';
 import { RecruitmentDetailPage } from './pages/RecruitmentDetailPage';
 import { RecruitmentEditPage } from './pages/RecruitmentEditPage';
+import { publicProfileSource } from './features/members/memberDiscovery';
 import { MembersPage } from './pages/MembersPage';
 import { MemberDetailPage } from './pages/MemberDetailPage';
 import { TeamBuilderPage } from './pages/TeamBuilderPage';
@@ -60,8 +61,8 @@ export const App: React.FC = () => {
             <Route path="/recruitments/:id/edit" element={<RecruitmentEditPage source={recruitmentSource} />} />
 
             {/* 팀원 탐색 및 매칭 */}
-            <Route path="/members" element={<MembersPage />} />
-            <Route path="/members/:id" element={<MemberDetailPage />} />
+            <Route path="/members" element={<MembersPage source={publicProfileSource} />} />
+            <Route path="/members/:id" element={<MemberDetailPage source={publicProfileSource} />} />
 
             {/* 스마트 팀 빌더 */}
             <Route path="/team-builder" element={<TeamBuilderPage />} />
