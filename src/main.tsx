@@ -1,10 +1,14 @@
-import React from 'react';
+import React, { lazy } from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App';
+import { AppStartup } from './AppStartup';
 import './styles/index.css';
+
+const App = lazy(() => import('./App'));
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
+    <AppStartup>
+      <App />
+    </AppStartup>
   </React.StrictMode>
 );
