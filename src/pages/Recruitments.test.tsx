@@ -455,6 +455,37 @@ describe('RecruitmentEditPage (모집글 수정 화면)', () => {
     });
   });
 
+  it('추가 모집 인원 0과 빈 값을 1로 바꾸지 않고 유효한 1만 저장한다', async () => {
+    testAuth.user = { id: 'author-user-id' };
+    const source = createMockSource();
+    vi.mocked(source.getRecruitmentById).mockResolvedValue({ ...mockRecruitment, targetMemberCount: 1, currentMemberCount: 0 });
+
+    render(<MemoryRouter initialEntries={['/recruitments/rec-test-1/edit']}>
+      <Routes>
+        <Route path="/recruitments/:id/edit" element={<RecruitmentEditPage source={source} />} />
+        <Route path="/recruitments/:id" element={<p>상세 화면</p>} />
+      </Routes>
+    </MemoryRouter>);
+    const count = await screen.findByDisplayValue('1') as HTMLInputElement;
+    const save = screen.getByRole('button', { name: '수정 사항 저장하기' });
+    expect(screen.getByText('팀장 1명 + 추가 모집 1명 = 총 2명 규모')).toBeTruthy();
+
+    for (const value of ['0', '']) {
+      fireEvent.change(count, { target: { value } });
+      expect(count.value).toBe(value);
+      fireEvent.click(save);
+      expect(screen.getByText('추가 모집 인원은 1명 이상의 정수여야 합니다.')).toBeTruthy();
+      expect(source.updateRecruitment).not.toHaveBeenCalled();
+    }
+
+    fireEvent.change(count, { target: { value: '1' } });
+    fireEvent.click(save);
+    await screen.findByText('상세 화면');
+    const [, updates] = vi.mocked(source.updateRecruitment).mock.calls[0];
+    expect(updates.targetMemberCount).toBe(1);
+    expect(updates).not.toHaveProperty('currentMemberCount');
+  });
+
   it('작성자에게 기존 값을 채워주고 수정을 처리한다', async () => {
     testAuth.user = { id: 'author-user-id' };
     const source = createMockSource();
