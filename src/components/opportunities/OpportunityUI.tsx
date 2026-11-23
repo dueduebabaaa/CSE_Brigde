@@ -66,12 +66,15 @@ export function OpportunityGraphic({ category, compact = false, layout }: {
   category: OpportunityCategory; compact?: boolean; layout?: 'card' | 'list';
 }) {
   const colors = COLORS[category];
-  const size = layout === 'card' ? 'h-12 w-full max-w-[208px] sm:h-16'
-    : layout === 'list' ? 'h-12 w-full max-w-[136px] sm:h-14'
+  const size = layout === 'card' ? 'h-16 w-full max-w-[300px] self-center sm:h-24'
+    : layout === 'list' ? 'aspect-[30/17] w-full max-w-[150px] sm:self-center'
     : `overflow-hidden px-4 ${compact ? 'h-16' : 'h-20 sm:h-24'}`;
+  const svgSize = layout === 'card' ? 'h-auto w-1/2 shrink-0'
+    : layout === 'list' ? 'h-auto w-[88px] max-w-[60%] shrink-0'
+    : 'h-full w-32 shrink-0';
   return <div style={{ backgroundColor: colors.background, color: colors.ink }} className={`relative flex items-center justify-between rounded-xl ${size} ${layout ? 'gap-1 px-2' : ''}`} aria-hidden="true">
     <span className={layout ? 'min-w-0 break-words text-[10px] font-bold sm:text-xs' : 'text-xs font-bold'}>{category}</span>
-    <svg viewBox="0 0 150 85" fill="none" className={layout ? `h-auto w-16 max-w-[54%] shrink-0 ${layout === 'card' ? 'sm:w-20' : ''}` : 'h-full w-32 shrink-0'}>
+    <svg viewBox="0 0 150 85" fill="none" className={svgSize}>
       {category === '경진대회' || category === '서포터즈' ? <><path d="M12 70V48H43V31H76V13H126M111 13H126V28" stroke="currentColor" strokeWidth="1.8" /><path d="M12 78H136M20 7V78M54 7V78M88 7V78M122 7V78" stroke="currentColor" strokeOpacity="0.15" /></>
         : category === '공모전' || category === '대외활동' ? <><circle cx="56" cy="42" r="29" stroke="currentColor" strokeWidth="1.5" /><circle cx="94" cy="42" r="29" stroke="currentColor" strokeWidth="1.5" /><path d="M10 42H140" stroke="currentColor" strokeDasharray="3 5" /><circle cx="75" cy="42" r="4" fill="currentColor" /></>
           : <><path d="M12 70Q75 -35 138 70M12 70Q75 0 138 70" stroke="currentColor" strokeWidth="1.5" /><path d="M12 70L75 30L138 70" stroke="currentColor" strokeOpacity="0.35" /><circle cx="12" cy="70" r="4" fill="currentColor" /><circle cx="138" cy="70" r="4" fill="currentColor" /></>}
@@ -86,7 +89,7 @@ export function OpportunityTile({ opportunity, match, now, demo = false, list = 
 }) {
   const status = opportunityStatus(opportunity, now);
   const to = `/opportunities/${encodeURIComponent(opportunity.id)}${listSearch}`;
-  return <article className={`min-w-0 rounded-2xl border border-[#E2E8F0] bg-white sm:p-5 ${list ? 'grid gap-4 p-4 sm:grid-cols-[136px_minmax(0,1fr)] sm:items-start' : 'relative flex flex-col gap-2 p-3'}`}>
+  return <article className={`min-w-0 rounded-2xl border border-[#E2E8F0] bg-white sm:p-5 ${list ? 'grid gap-4 p-4 sm:grid-cols-[150px_minmax(0,1fr)] sm:items-start' : 'relative flex flex-col gap-2 p-3'}`}>
     <OpportunityGraphic category={opportunity.category} layout={list ? 'list' : 'card'} />
     {!list && <div className="flex min-w-0 flex-1 flex-col sm:hidden">
       <div className="mt-1 flex min-h-11 items-center justify-between gap-0.5">
