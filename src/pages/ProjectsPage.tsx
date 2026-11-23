@@ -7,8 +7,19 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { useMyProfile } from '../contexts/MyProfileContext';
-import { getRecruitments } from '../services/recruitmentService';
+import { applicationStatusLabels, recruitmentStatusLabels } from '../features/recruitments/recruitmentModel';
+import {
+  getMyRecruitmentApplications,
+  getRecruitments,
+  type MyRecruitmentApplication,
+  type RecruitmentServiceResponse,
+} from '../services/recruitmentService';
 import type { Recruitment } from '../types';
+
+const applicationDateFormat = new Intl.DateTimeFormat('ko-KR', {
+  dateStyle: 'medium',
+  timeZone: 'Asia/Seoul',
+});
 
 export const ProjectsPage: React.FC = () => {
   const { userId, status } = useMyProfile();
@@ -17,6 +28,33 @@ export const ProjectsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
+  const [applicationQuery, setApplicationQuery] = useState<{
+    userId: string;
+    response: RecruitmentServiceResponse<MyRecruitmentApplication[]>;
+  } | null>(null);
+
+  const canViewRecruitments = status === 'ready' && Boolean(userId);
+
+  useEffect(() => {
+    setApplicationQuery(null);
+    if (!canViewRecruitments || !userId) return;
+
+    let active = true;
+    void getMyRecruitmentApplications().then((response) => {
+      if (active) setApplicationQuery({ userId, response });
+    }).catch(() => {
+      if (active) {
+        setApplicationQuery({
+          userId,
+          response: { data: null, error: { code: 'UNKNOWN_ERROR', message: '지원 내역을 불러오지 못했어요.' } },
+        });
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [canViewRecruitments, userId]);
 
   useEffect(() => {
     let active = true;
@@ -56,6 +94,12 @@ export const ProjectsPage: React.FC = () => {
     };
   }, [userId, status, retry]);
 
+  const isLoading = status === 'loading' || loading;
+  const applicationResponse = applicationQuery?.userId === userId ? applicationQuery?.response : null;
+  const count = !isLoading && canViewRecruitments && error === null
+    ? `${recruitments.length}개`
+    : '—';
+
   const statusLabel = (value: Recruitment['status']) => {
     if (value === 'recruiting') return '모집중';
     if (value === 'completed') return '모집완료';
@@ -86,21 +130,21 @@ export const ProjectsPage: React.FC = () => {
             내가 만든 모집글
           </h2>
           <span className="text-sm text-[#64748B]">
-            {recruitments.length}개
+            {count}
           </span>
         </div>
 
-        {status === 'loading' || loading ? (
+        {isLoading ? (
           <div className="p-10 text-center rounded-2xl bg-white border border-[#E2E8F0] text-[#64748B]">
             모집글을 불러오는 중입니다.
           </div>
-        ) : status !== 'ready' ? (
+        ) : !canViewRecruitments ? (
           <div className="p-10 text-center rounded-2xl bg-white border border-[#E2E8F0]">
             <p className="text-[#64748B]">
               로그인과 프로필 설정을 완료하면 내 모집글을 확인할 수 있어요.
             </p>
           </div>
-        ) : error ? (
+        ) : error !== null ? (
           <div className="p-10 text-center rounded-2xl bg-white border border-[#E2E8F0] space-y-3">
             <p className="font-bold text-[#111111]">
               모집글을 불러오지 못했어요.
@@ -177,9 +221,45 @@ export const ProjectsPage: React.FC = () => {
           <h2 className="font-bold text-[#111111]">
             내가 지원한 모집글
           </h2>
-          <p className="text-sm text-[#64748B]">
-            지원 내역 조회 기능을 준비하고 있어요.
-          </p>
+          {status === 'loading' || (canViewRecruitments && !applicationResponse) ? (
+            <p role="status" className="text-sm text-[#64748B]">지원 내역을 불러오는 중입니다.</p>
+          ) : !canViewRecruitments ? (
+            <p className="text-sm text-[#64748B]">로그인과 프로필 설정을 완료하면 지원 내역을 확인할 수 있어요.</p>
+          ) : applicationResponse?.error || !applicationResponse?.data ? (
+            <p role="alert" className="text-sm text-rose-700">지원 내역을 불러오지 못했어요.</p>
+          ) : applicationResponse.data.length === 0 ? (
+            <p className="text-sm text-[#64748B]">아직 지원한 모집글이 없습니다.</p>
+          ) : (
+            <ul className="divide-y divide-[#E2E8F0]">
+              {applicationResponse.data.map((application) => {
+                const recruitmentStatus = recruitmentStatusLabels[application.recruitmentStatus];
+                const applicationStatus = applicationStatusLabels[application.applicationStatus];
+                return (
+                  <li key={application.applicationId}>
+                    <Link
+                      to={`/recruitments/${encodeURIComponent(application.recruitmentId)}`}
+                      className="block space-y-2 py-3"
+                    >
+                      <h3 className="break-words text-sm font-bold text-[#111111] hover:text-[#7D39EB]">
+                        {application.recruitmentTitle}
+                      </h3>
+                      <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <span className={`rounded-md px-2 py-1 ${recruitmentStatus.badgeClass}`}>
+                          모집 상태 · {recruitmentStatus.label}
+                        </span>
+                        <span className={`rounded-md px-2 py-1 ${applicationStatus.badgeClass}`}>
+                          지원 상태 · {applicationStatus.label}
+                        </span>
+                        <time dateTime={application.appliedAt} className="text-[#64748B]">
+                          지원일 {applicationDateFormat.format(new Date(application.appliedAt))}
+                        </time>
+                      </div>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
 
         <div className="p-6 rounded-2xl bg-white border border-[#E2E8F0] space-y-2">

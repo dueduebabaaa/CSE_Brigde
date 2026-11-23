@@ -29,6 +29,7 @@ import {
   createRecruitment,
   deleteRecruitment,
   getApplicationsForRecruitment,
+  getMyRecruitmentApplications,
   getRecruitmentById,
   getRecruitments,
   mapApplicationRow,
@@ -251,6 +252,72 @@ describe('applications', () => {
     expect((await getRecruitments()).error?.code).toBe('INVALID_EMAIL_DOMAIN');
     mocks.getUser.mockResolvedValueOnce({ data: { user: { ...signedInUser, email_confirmed_at: null } }, error: null });
     expect((await getRecruitments()).error?.code).toBe('EMAIL_NOT_VERIFIED');
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+  it('lists only the signed-in user applications with recruitment details', async () => {
+    mocks.result = {
+      data: [
+        {
+          id: 'app-1',
+          recruitment_id: 'rec-1',
+          status: 'pending',
+          created_at: '2026-11-24T00:00:00.000Z',
+          recruitment: {
+            title: 'Frontend 모집',
+            status: 'recruiting',
+          },
+        },
+      ],
+      error: null,
+    };
+
+    const result = await getMyRecruitmentApplications();
+
+    expect(result.data).toEqual([
+      {
+        applicationId: 'app-1',
+        recruitmentId: 'rec-1',
+        applicationStatus: 'pending',
+        appliedAt: '2026-11-24T00:00:00.000Z',
+        recruitmentTitle: 'Frontend 모집',
+        recruitmentStatus: 'recruiting',
+      },
+    ]);
+    expect(mocks.from).toHaveBeenCalledWith('applications');
+    expect(mocks.select).toHaveBeenCalledWith(expect.stringContaining('recruitments!applications_recruitment_id_fkey'));
+    expect(mocks.eq).toHaveBeenCalledTimes(1);
+    expect(mocks.eq).toHaveBeenCalledWith('applicant_id', signedInUser.id);
+    expect(mocks.order).toHaveBeenCalledWith('created_at', { ascending: false });
+  });
+
+  it('returns an empty array when the user has no applications', async () => {
+    mocks.result = { data: [], error: null };
+
+    const result = await getMyRecruitmentApplications();
+
+    expect(result.data).toEqual([]);
+    expect(result.error).toBeNull();
+    expect(mocks.eq).toHaveBeenCalledWith('applicant_id', signedInUser.id);
+  });
+
+  it('returns a database error when the applications relation is missing', async () => {
+    mocks.result = { data: null, error: { code: '42P01', message: 'relation applications does not exist' } };
+
+    const result = await getMyRecruitmentApplications();
+
+    expect(result.data).toBeNull();
+    expect(result.error?.code).toBe('DATABASE_ERROR');
+  });
+
+  it('does not query applications when the user is unauthenticated', async () => {
+    mocks.getUser.mockResolvedValueOnce({
+      data: { user: null },
+      error: null,
+    });
+
+    const result = await getMyRecruitmentApplications();
+
+    expect(result.error?.code).toBe('UNAUTHENTICATED');
     expect(mocks.from).not.toHaveBeenCalled();
   });
 });

@@ -54,6 +54,7 @@ export const App: React.FC = () => {
 
             {/* 팀원 모집 게시판 */}
             <Route path="/recruitments" element={<RecruitmentsPage source={recruitmentSource} />} />
+            <Route path="/recruitments/create" element={<RecruitmentCreatePage source={recruitmentSource} />} />
             <Route path="/recruitments/new" element={<RecruitmentCreatePage source={recruitmentSource} />} />
             <Route path="/recruitments/:id" element={<RecruitmentDetailPage source={recruitmentSource} />} />
             <Route path="/recruitments/:id/edit" element={<RecruitmentEditPage source={recruitmentSource} />} />
